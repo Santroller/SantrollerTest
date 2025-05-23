@@ -1,0 +1,52 @@
+{
+  "devices": {
+    "wii_extension": "Wii Extension",
+    "band_hero_drums": "Band Hero Drums",
+    "adxl345": "ADXL345 Accelerometer",
+    "world_tour_drums": "World Tour Drums"
+  },
+  "disconnected": "Disconnected",
+  "connected": "Connected",
+  "mapping_mode": {
+    "label": "Mapping Mode",
+    "per_input": "Per Input",
+    "per_extension": "Per Controller Type",
+    "description": "If set to per input, then a single set of mappings is shared for all controller types. Setting to per controller type allows mapping inputs per controller type. For example, per input would treat the A button and Green fret as the same input, while per controller type would allow mapping them seperately."
+  },
+  "face_button_mapping_mode": {
+    "label": "Face Button Mapping Mode",
+    "legend_based": "Legend Based",
+    "position_based": "Position Based",
+    "description": "Face buttons are in different positions on different controllers. You can map buttons based on their name or by their location. For example, if you were to use a classic controller on an xbox location based mappings would swap A with B and X with Y."
+  },
+  "i2c": {
+    "sda": {
+      "label": "SDA Pin",
+      "pin": "GP{{pin}} - SDA, I2C Channel {{channel}}"
+    },
+    "scl": {
+      "label": "SCL Pin",
+      "pin": "GP{{pin}} - SCL, I2C Channel {{channel}}"
+    },
+    "incorrect_group": "I2C Pins are not from the same group"
+  },
+  "spi" : {
+    "mosi": {
+      "label": "MOSI Pin",
+      "pin": "GP{{pin}} - MOSI, SPI Channel {{channel}}"
+    },
+    "miso": {
+      "label": "MISO Pin",
+      "pin": "GP{{pin}} - MISO, SPI Channel {{channel}}"
+    },
+    "sck": {
+      "label": "SCK Pin",
+      "pin": "GP{{pin}} - SCK, SPI Channel {{channel}}"
+    },
+    "csn": {
+      "label": "CSn Pin",
+      "pin": "GP{{pin}} - CSn, SPI Channel {{channel}}"
+    },
+    "incorrect_group": "SPI Pins are not from the same group"
+  }
+}

@@ -130,3 +130,5 @@ dist
 .pnp.*
 
 .DS_Store
+src/components/SettingsContext/config.js
+src/components/SettingsContext/config.d.ts

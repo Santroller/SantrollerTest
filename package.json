@@ -4,8 +4,9 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "npm run build_proto && vite",
+    "build_proto": "pbjs -w es6 -t static-module Santroller/proto/config.proto -o src/components/SettingsContext/config.js && pbts -o src/components/SettingsContext/config.d.ts src/components/SettingsContext/config.js",
+    "build": "npm run build_proto && tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "npm run eslint && npm run stylelint",
@@ -22,8 +23,12 @@
   "dependencies": {
     "@mantine/core": "8.0.1",
     "@mantine/hooks": "8.0.1",
+    "@tabler/icons-react": "^3.33.0",
+    "i18next": "^25.2.0",
+    "protobufjs": "7.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-i18next": "^15.5.2",
     "react-router-dom": "^7.5.3"
   },
   "devDependencies": {
@@ -50,6 +55,7 @@
     "postcss-simple-vars": "^7.0.1",
     "prettier": "^3.5.3",
     "prop-types": "^15.8.1",
+    "protobufjs-cli": "1.1.3",
     "storybook": "^8.6.12",
     "storybook-dark-mode": "^4.0.2",
     "stylelint": "^16.19.1",
