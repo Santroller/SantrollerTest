@@ -16,11 +16,7 @@ export class MappingStatus {
     this.id = id;
     this.mapping = mapping;
     this.state = 0;
-    this.lastUpdate = +new Date();
-    this.fastCallCount = 0;
   }
-  lastUpdate: number;
-  fastCallCount: number;
   id: number;
   mapping: proto.IMapping;
   state: number;
@@ -74,6 +70,8 @@ export class DeviceStatus {
         return [status.device.djhTurntable?.i2c.sda, status.device.djhTurntable?.i2c.scl];
       case 'midiSerial':
         return [status.device.midiSerial?.uart.tx, status.device.midiSerial?.uart.rx];
+      case 'crkdNeck':
+        return [status.device.crkdNeck?.uart.tx, status.device.crkdNeck?.uart.rx];
       case 'multiplexer':
         return [
           status.device.multiplexer?.s0Pin,
@@ -124,7 +122,8 @@ export interface ConfigState {
   crc: number;
   writing: boolean;
   lastUpdate: number;
-  timeout?: NodeJS.Timeout;
+  writeTimeout?: NodeJS.Timeout;
+  keepaliveTimeout?: NodeJS.Timeout;
 }
 export interface Actions {
   updateDevice: (device: proto.IDevice, id: string) => void;
@@ -139,6 +138,7 @@ export interface Actions {
   addDevice: (type: string) => void;
   onReport: (evt: HIDInputReportEvent) => void;
   setActiveProfile: (id: string | null) => void;
+  sendKeepAlive: () => void;
   saveConfig: () => void;
 }
 
@@ -167,6 +167,7 @@ export const initialConfig = InitState(
   proto.Config.create({
     devices: [],
     profiles: [],
+    currentProfile: 0
   })
 );
 
@@ -201,6 +202,9 @@ function createDefault(type: string, id: string) {
     case 'midiSerial':
       device = { uart };
       break;
+    case 'crkdNeck':
+      device = { uart };
+      break;
     case 'multiplexer':
       device = { s0Pin: -1, s1Pin: -1, s2Pin: -1, s3Pin: -1, inputPin: -1 };
       break;
@@ -220,7 +224,10 @@ function createDefault(type: string, id: string) {
   }
   return new DeviceStatus(id, type, { [type]: { ...device, mappingMode } });
 }
-
+function buf2hex(buffer: Uint8Array) {
+  // buffer is an ArrayBuffer
+  return [...new Uint8Array(buffer)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
 const magic = 0xd2f1e365;
 export const useConfigStore = create<ConfigState & Actions>()(
   immer(
@@ -270,6 +277,14 @@ export const useConfigStore = create<ConfigState & Actions>()(
           });
           get().saveConfig();
         },
+        sendKeepAlive: async () => {
+          const dev = get().hidDevice;
+          if (!dev) return;
+          await dev.sendFeatureReport(
+            proto.ReportId.ReportIdKeepalive,
+            new Uint8Array([0])
+          );
+        },
         updateConfig: (config: proto.IConfig) => {
           set((state) => {
             state.config = { ...state.config, ...config };
@@ -302,6 +317,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
             new Uint8Array(evt.data.buffer),
             evt.data.byteLength
           );
+          if (deviceEvent.debug) {
+            console.log(buf2hex(new Uint8Array(Int32Array.from(deviceEvent.debug.data!).buffer)));
+          }
           if (deviceEvent.wii) {
             set((state) => {
               if (deviceEvent.wii!.id in state.deviceStatus) {
@@ -312,7 +330,8 @@ export const useConfigStore = create<ConfigState & Actions>()(
           if (deviceEvent.device) {
             set((state) => {
               if (deviceEvent.device!.id in state.deviceStatus) {
-                state.deviceStatus[deviceEvent.device!.id].connected = deviceEvent.device!.connected;
+                state.deviceStatus[deviceEvent.device!.id].connected =
+                  deviceEvent.device!.connected;
               }
             });
           }
@@ -322,12 +341,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
                 const mappings = state.mappingStatus[state.config.currentProfile ?? 0];
                 if (deviceEvent.button!.id in mappings) {
                   const mapping = mappings[deviceEvent.button!.id];
-                  const now = +new Date();
-                  // limit updates from digital inputs if they change rapidly
-                  if (now - mapping.lastUpdate > 100) {
-                    mapping.lastUpdate = now;
-                    mapping.state = deviceEvent.button?.state ? 32767 : 0;
-                  }
+                  mapping.state = deviceEvent.button?.state ? 32767 : 0;
                 }
               }
             });
@@ -338,12 +352,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
                 const mappings = state.mappingStatus[state.config.currentProfile ?? 0];
                 if (deviceEvent.axis!.id in mappings) {
                   const mapping = mappings[deviceEvent.axis!.id];
-                  const now = +new Date();
-                  // limit updates from analog inputs if they change rapidly
-                  if (now - mapping.lastUpdate > 100) {
-                    mapping.lastUpdate = now;
-                    mapping.state = deviceEvent.axis?.state!;
-                  }
+                  mapping.state = deviceEvent.axis?.state!;
                 }
               }
             });
@@ -379,6 +388,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
           set((state) => {
             state.hidDevice?.removeEventListener('inputreport', state.onReport);
             state.hidDevice?.close();
+            if (state.keepaliveTimeout) {
+              clearInterval(state.keepaliveTimeout);
+            }
             state.connected = false;
           }),
         saveConfig: async () => {
@@ -389,10 +401,10 @@ export const useConfigStore = create<ConfigState & Actions>()(
           // debounce writes so we don't trash the flash on the pico
           const now = +new Date();
           if (now - state.lastUpdate < 500 || state.writing) {
-            if (state.timeout) {
-              clearTimeout(state.timeout);
+            if (state.writeTimeout) {
+              clearTimeout(state.writeTimeout);
             }
-            state.timeout = setTimeout(() => get().saveConfig(), 500);
+            state.writeTimeout = setTimeout(() => get().saveConfig(), 500);
             return;
           }
           set((state) => {
@@ -417,7 +429,10 @@ export const useConfigStore = create<ConfigState & Actions>()(
           const infoBuffer = proto.ConfigInfo.encode(
             proto.ConfigInfo.create({ dataSize: buffer.length, dataCrc: crc, magic })
           ).finish();
-          await state.hidDevice.sendFeatureReport(proto.ReportId.ReportIdConfigInfo, infoBuffer);
+          await state.hidDevice.sendFeatureReport(
+            proto.ReportId.ReportIdConfigInfo,
+            infoBuffer as Buffer<ArrayBuffer>
+          );
           let start = 0;
           const len = 63;
           while (start <= buffer.length) {
@@ -459,6 +474,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
             }
             try {
               const config = proto.Config.decode(data, info.dataSize);
+              const timeout = setInterval(() => get().sendKeepAlive(), 10);
               set(
                 (old) => ({
                   ...old,
@@ -466,6 +482,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
                   connected: true,
                   hidDevice: device,
                   crc: info.dataCrc,
+                  keepaliveTimeout: timeout,
                 }),
                 true
               );

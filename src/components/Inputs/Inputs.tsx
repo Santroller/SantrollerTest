@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IconPencil, IconPlus, IconRestore, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import {
   ActionIcon,
   Affix,
@@ -44,21 +45,32 @@ const validDevices = [
   'djhTurntable',
   'usbHost',
   'multiplexer',
+  'crkdNeck',
   'psx',
   'snes',
   'joybus',
   'peripheral',
 ];
+export function StateBadge({ profileIdx, mappingIdx }: { profileIdx: number; mappingIdx: number }) {
+  const state = useConfigStore((state) => state.mappingStatus[profileIdx][mappingIdx].state);
+  return (
+    <Badge size="md" color="blue">
+      {state}
+    </Badge>
+  );
+}
 export function SantrollerInput({
   mapping,
   type,
-  state,
+  profileIdx,
+  mappingIdx,
   dispatch,
   deleteInput,
 }: {
   mapping: proto.IMapping;
   type: proto.SubType;
-  state: number;
+  profileIdx: number;
+  mappingIdx: number;
   dispatch: (mapping: proto.IMapping) => void;
   deleteInput: () => void;
 }) {
@@ -88,6 +100,12 @@ export function SantrollerInput({
     device = deviceStatus[mapping.input.analogDevice.deviceid];
   } else if (mapping.input.mpr121) {
     device = deviceStatus[mapping.input.mpr121.deviceid];
+  } else if (mapping.input.wiiAxis) {
+    device = deviceStatus[mapping.input.wiiAxis.deviceid];
+  } else if (mapping.input.crkd) {
+    device = deviceStatus[mapping.input.crkd.deviceid];
+  } else if (mapping.input.wiiButton) {
+    device = deviceStatus[mapping.input.wiiButton.deviceid];
   } else if (mapping.input.gpio) {
     deviceValue = t(`devices.gpio`);
   } else if (mapping.input.midi) {
@@ -135,9 +153,7 @@ export function SantrollerInput({
             <IconTrash style={{ width: '70%', height: '70%' }} onClick={open} />
           </ActionIcon>
         </Flex>
-        <Badge size="md" color="blue">
-          {state}
-        </Badge>
+        <StateBadge mappingIdx={mappingIdx} profileIdx={profileIdx}></StateBadge>
         {img && (
           <Card.Section>
             <Center>
@@ -200,18 +216,43 @@ export function SantrollerInput({
             combobox.closeDropdown();
             // setDeviceValue(val);
             if (isNumberLike(val)) {
-              if (mapping.axis) {
-                dispatch({
-                  ...mapping,
-                  input: { analogDevice: { axis: mapping.axis.axis, deviceid: parseInt(val) } },
-                });
-              } else if (mapping.button) {
-                dispatch({
-                  ...mapping,
-                  input: {
-                    digitalDevice: { button: mapping.button.button, deviceid: parseInt(val) },
-                  },
-                });
+              switch (deviceStatus[parseInt(val)].type) {
+                case 'wii':
+                  if (mapping.axis) {
+                    dispatch({
+                      ...mapping,
+                      input: {
+                        wiiAxis: {
+                          axis: proto.WiiAxisType.WiiAxisClassicLeftStickX,
+                          deviceid: parseInt(val),
+                        },
+                      },
+                    });
+                  } else if (mapping.button) {
+                    dispatch({
+                      ...mapping,
+                      input: {
+                        wiiButton: {
+                          button: proto.WiiButtonType.WiiButtonClassicA,
+                          deviceid: parseInt(val),
+                        },
+                      },
+                    });
+                  }
+                  break;
+                case 'crkdNeck':
+                  if (mapping.button) {
+                    dispatch({
+                      ...mapping,
+                      input: {
+                        crkd: {
+                          button: proto.CrkdNeckButtonType.CrkdGreen,
+                          deviceid: parseInt(val),
+                        },
+                      },
+                    });
+                  }
+                  break;
               }
               return;
             }
@@ -306,6 +347,129 @@ export function SantrollerInput({
                       {item}
                     </Combobox.Option>
                   ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.input.wiiAxis && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const axis = proto.WiiAxisType[val as keyof typeof proto.WiiAxisType];
+              if (axis !== undefined) {
+                dispatch({
+                  ...mapping,
+                  input: { wiiAxis: { axis, deviceid: inputDevice!.deviceid } },
+                });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1] || (
+                  <Input.Placeholder>Pick value</Input.Placeholder>
+                )}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.WiiAxisType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.input.wiiButton && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const button = proto.WiiButtonType[val as keyof typeof proto.WiiButtonType];
+              if (button !== undefined) {
+                dispatch({
+                  ...mapping,
+                  input: { wiiButton: { ...mapping.input.wiiButton!, button } },
+                });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1] || (
+                  <Input.Placeholder>Pick value</Input.Placeholder>
+                )}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.WiiButtonType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.input.crkd && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const button = proto.CrkdNeckButtonType[val as keyof typeof proto.CrkdNeckButtonType];
+              if (button !== undefined) {
+                dispatch({
+                  ...mapping,
+                  input: { crkd: { ...mapping.input.crkd!, button } },
+                });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1] || (
+                  <Input.Placeholder>Pick value</Input.Placeholder>
+                )}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.CrkdNeckButtonType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
               </Combobox.Options>
             </Combobox.Dropdown>
           </Combobox>
@@ -485,9 +649,8 @@ function FaceButtonMappingMode({
   );
 }
 export function Inputs() {
-  const profiles = useConfigStore((state) => state.config.profiles!);
-  const mappingStatus = useConfigStore((state) => state.mappingStatus);
   const activeProfile = useConfigStore((state) => state.config.currentProfile);
+  const profiles = useConfigStore((state) => state.config.profiles!);
   const setActiveProfile = useConfigStore((state) => state.setActiveProfile);
   const updateProfile = useConfigStore((state) => state.updateProfile);
   const addProfile = useConfigStore((state) => state.addProfile);
@@ -570,7 +733,8 @@ export function Inputs() {
                   key={mappingIdx}
                   mapping={mapping}
                   type={x.deviceToEmulate}
-                  state={mappingStatus[profileIdx][mappingIdx].state}
+                  profileIdx={profileIdx}
+                  mappingIdx={mappingIdx}
                   dispatch={(val) =>
                     updateProfile(
                       {
@@ -606,7 +770,8 @@ export function Inputs() {
                   key={mappingIdx}
                   mapping={mapping}
                   type={x.deviceToEmulate}
-                  state={mappingStatus[profileIdx][mappingIdx].state}
+                  profileIdx={profileIdx}
+                  mappingIdx={mappingIdx}
                   dispatch={(val) =>
                     updateProfile(
                       {

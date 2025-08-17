@@ -624,6 +624,29 @@ function MidiSerialDevice({ id }: { id: string }) {
     </DeviceCard>
   );
 }
+function CrkdNeckDevice({ id }: { id: string }) {
+  const status = useConfigStore((state) => state.deviceStatus[id]);
+  const updateDevice = useConfigStore((state) => state.updateDevice);
+  const deleteDevice = useConfigStore((state) => state.deleteDevice);
+  const device = status.device;
+  if (!device.crkdNeck) {
+    throw new Error('device null!');
+  }
+  const crkdNeck = device.crkdNeck;
+  return (
+    <DeviceCard
+      connected={status.connected}
+      title="devices.crkdNeck"
+      image="covers/devices/crkdNeck.png"
+      deleteDevice={() => deleteDevice(id)}
+    >
+      <UARTDevice
+        device={crkdNeck.uart}
+        dispatch={(val) => updateDevice({ crkdNeck: { ...crkdNeck, uart: {...val, baudrate: 460800} } }, id)}
+      />
+    </DeviceCard>
+  );
+}
 function Max1704XDevice({ id }: { id: string }) {
   const status = useConfigStore((state) => state.deviceStatus[id]);
   const updateDevice = useConfigStore((state) => state.updateDevice);
@@ -975,6 +998,7 @@ const types: { [type: string]: React.FunctionComponent<{ id: string }> } = {
   gh5Neck: GH5NeckDevice,
   djhTurntable: DJHeroTurntableDevice,
   midiSerial: MidiSerialDevice,
+  crkdNeck: CrkdNeckDevice,
   usbHost: USBHostDevice,
   multiplexer: MultiplexerDevice,
   psx: PSXDevice,
