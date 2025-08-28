@@ -408,7 +408,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
           }
           // debounce writes so we don't trash the flash on the pico
           const now = +new Date();
-          if (now - state.lastUpdate < 500 || state.writing) {
+          if (now - state.lastUpdate < 1000 || state.writing) {
             if (state.writeTimeout) {
               clearTimeout(state.writeTimeout);
             }
