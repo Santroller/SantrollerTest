@@ -127,6 +127,7 @@ export interface ConfigState {
   lastUpdate: number;
   writeTimeout?: NodeJS.Timeout;
   keepaliveTimeout?: NodeJS.Timeout;
+  currentProfile: number;
 }
 export interface Actions {
   updateDevice: (device: proto.IDevice, id: string) => void;
@@ -164,7 +165,8 @@ function InitState(config: proto.Config): ConfigState {
     crc: 0,
     lastUpdate: 0,
     writing: false,
-    polling: false
+    polling: false,
+    currentProfile: 0
   };
 }
 
@@ -172,7 +174,6 @@ export const initialConfig = InitState(
   proto.Config.create({
     devices: [],
     profiles: [],
-    currentProfile: 0,
   })
 );
 
@@ -247,7 +248,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
         },
         setActiveProfile: (id: string | null) => {
           set((state) => {
-            state.config = { ...state.config, currentProfile: parseInt(id ?? '0') };
+            state.currentProfile = parseInt(id ?? '0');
           });
           get().saveConfig();
         },
@@ -269,8 +270,8 @@ export const useConfigStore = create<ConfigState & Actions>()(
         },
         deleteProfile: (id: number) => {
           set((state) => {
-            if (state.config.currentProfile == id) {
-              state.config.currentProfile = Math.max(id - 1, 0);
+            if (state.currentProfile == id) {
+              state.currentProfile = Math.max(id - 1, 0);
             }
             state.config = {
               ...state.config,
@@ -340,7 +341,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
           if (deviceEvent.button && get().polling) {
             set((state) => {
               if (state.mappingStatus.length) {
-                const mappings = state.mappingStatus[state.config.currentProfile ?? 0];
+                const mappings = state.mappingStatus[state.currentProfile ?? 0];
                 if (deviceEvent.button!.id in mappings) {
                   const mapping = mappings[deviceEvent.button!.id];
                   mapping.state = deviceEvent.button?.state ? 65535 : 0;
@@ -352,7 +353,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
           if (deviceEvent.axis && get().polling) {
             set((state) => {
               if (state.mappingStatus.length) {
-                const mappings = state.mappingStatus[state.config.currentProfile ?? 0];
+                const mappings = state.mappingStatus[state.currentProfile ?? 0];
                 if (deviceEvent.axis!.id in mappings) {
                   const mapping = mappings[deviceEvent.axis!.id];
                   mapping.state = deviceEvent.axis?.state!;
@@ -376,8 +377,8 @@ export const useConfigStore = create<ConfigState & Actions>()(
                   mappings: [],
                 },
               ],
-              currentProfile: state.config.profiles!.length,
             };
+            state.currentProfile = state.config.profiles!.length;
             state.mappingStatus[state.config.profiles!.length - 1] = [];
           });
           get().saveConfig();
@@ -396,10 +397,11 @@ export const useConfigStore = create<ConfigState & Actions>()(
               clearInterval(state.keepaliveTimeout);
             }
             state.connected = false;
+            state.hidDevice = undefined;
           }),
-        pollInputs: (poll) => 
+        pollInputs: (poll) =>
           set((state) => {
-            state.polling = poll
+            state.polling = poll;
           }),
         saveConfig: async () => {
           const state = get();
@@ -436,8 +438,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
             state.writing = true;
             state.crc = crc;
           });
+          console.log("what")
           const infoBuffer = proto.ConfigInfo.encode(
-            proto.ConfigInfo.create({ dataSize: buffer.length, dataCrc: crc, magic })
+            proto.ConfigInfo.create({ dataSize: buffer.length, dataCrc: crc, magic, currentProfile: state.currentProfile })
           ).finish();
           await state.hidDevice.sendFeatureReport(
             proto.ReportId.ReportIdConfigInfo,
@@ -493,6 +496,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
                   hidDevice: device,
                   crc: info.dataCrc,
                   keepaliveTimeout: timeout,
+                  currentProfile: info.currentProfile
                 }),
                 true
               );
