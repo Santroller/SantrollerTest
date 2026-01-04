@@ -64,7 +64,7 @@ function I2CDevice({
         pin={device.sda}
         valid={SdaPins}
         dispatch={(pin) =>
-          dispatch({ ...device, sda: pin, block: parseInt(I2CGroups[pin]), clock: 400000 })
+          dispatch({ ...device, sda: pin, block: parseInt(I2CGroups[pin]) })
         }
       />
       <PinBox
@@ -73,7 +73,7 @@ function I2CDevice({
         pin={device.scl}
         valid={SclPins}
         dispatch={(pin) =>
-          dispatch({ ...device, scl: pin, block: parseInt(I2CGroups[pin]), clock: 400000 })
+          dispatch({ ...device, scl: pin, block: parseInt(I2CGroups[pin])})
         }
       />
     </>
@@ -386,7 +386,9 @@ function BandHeroDrumDevice({ id }: { id: string }) {
     >
       <I2CDevice
         device={bhDrum.i2c}
-        dispatch={(val) => updateDevice({ bhDrum: { ...bhDrum, i2c: val } }, id)}
+        dispatch={(val) =>
+          updateDevice({ bhDrum: { ...bhDrum, i2c: { ...val, clock: 100000 } } }, id)
+        }
       />
     </DeviceCard>
   );

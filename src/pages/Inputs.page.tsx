@@ -595,6 +595,14 @@ function isInput(deviceStatus: DeviceStatus) {
       return true;
   }
 }
+function hasDefaults(deviceStatus: DeviceStatus) {
+  switch (deviceStatus.type) {
+    case 'crkdNeck':
+      return true;
+    default:
+      return false;
+  }
+}
 function FixLabel(mode: proto.FaceButtonMappingMode, label: string) {
   if (mode == proto.FaceButtonMappingMode.PositionBased) {
     if (label == 'GamepadA') {
@@ -692,6 +700,8 @@ function SantrollerMapping({
     device = deviceStatus[mapping.input.crkd.deviceid];
   } else if (mapping.input.wiiButton) {
     device = deviceStatus[mapping.input.wiiButton.deviceid];
+  } else if (mapping.input.gh5Neck) {
+    device = deviceStatus[mapping.input.gh5Neck.deviceid];
   } else if (mapping.input.accelerometer) {
     device = deviceStatus[mapping.input.accelerometer.deviceid];
   } else if (mapping.input.gpio && mapping.input.gpio.analog) {
@@ -810,6 +820,19 @@ function SantrollerMapping({
                         input: {
                           crkd: {
                             button: proto.CrkdNeckButtonType.CrkdGreen,
+                            deviceid: parseInt(val),
+                          },
+                        },
+                      });
+                    }
+                    break;
+                  case 'gh5Neck':
+                    if (button) {
+                      dispatch({
+                        ...mapping,
+                        input: {
+                          gh5Neck: {
+                            button: proto.Gh5NeckButtonType.Gh5Green,
                             deviceid: parseInt(val),
                           },
                         },
@@ -1037,6 +1060,63 @@ function SantrollerMapping({
               onClick={() => inputCombobox.toggleDropdown()}
             >
               {proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1] || (
+                <Input.Placeholder>Pick value</Input.Placeholder>
+              )}
+            </InputBase>
+          ))}
+        {mapping.input.gh5Neck &&
+          ((inputCombobox.dropdownOpened && (
+            <Combobox
+              store={inputCombobox}
+              onOptionSubmit={(val) => {
+                const button = proto.Gh5NeckButtonType[val as keyof typeof proto.Gh5NeckButtonType];
+                console.log(button);
+                if (button !== undefined) {
+                  dispatch({
+                    ...mapping,
+                    input: { gh5Neck: { ...mapping.input.gh5Neck!, button } },
+                  });
+                }
+                inputCombobox.closeDropdown();
+              }}
+            >
+              <Combobox.Target>
+                <InputBase
+                  label="Input"
+                  component="button"
+                  type="button"
+                  pointer
+                  rightSection={<Combobox.Chevron />}
+                  rightSectionPointerEvents="none"
+                  onClick={() => inputCombobox.toggleDropdown()}
+                >
+                  {t(
+                    `gh5Neck.inputs.${proto.Gh5NeckButtonType[mapping.input.gh5Neck?.button ?? -1]}`
+                  )}
+                </InputBase>
+              </Combobox.Target>
+
+              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+                <Combobox.Options>
+                  {Object.keys(proto.Gh5NeckButtonType).map((item) => (
+                    <Combobox.Option value={item} key={item}>
+                      {item}
+                    </Combobox.Option>
+                  ))}
+                </Combobox.Options>
+              </Combobox.Dropdown>
+            </Combobox>
+          )) || (
+            <InputBase
+              label="Input"
+              component="button"
+              type="button"
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => inputCombobox.toggleDropdown()}
+            >
+              {proto.Gh5NeckButtonType[mapping.input.gh5Neck?.button ?? -1] || (
                 <Input.Placeholder>Pick value</Input.Placeholder>
               )}
             </InputBase>
@@ -2052,8 +2132,15 @@ function Profile({ profileIdx }: { profileIdx: number }) {
         </>
       )}
       <Space h="md" />
-      <Title order={3}>Activation method</Title>
+      <Title order={3}>Assignments</Title>
       <Group>
+        {profile.activationMethod?.length == 0 && (
+          <>
+            <Button variant="filled" onClick={() => loadDefaults(undefined)}>
+              Add assignment
+            </Button>
+          </>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
             items={profile.activationMethod?.map((mapping, mappingIdx) => mappingIdx)!}
@@ -2101,20 +2188,18 @@ function Profile({ profileIdx }: { profileIdx: number }) {
       <Space h="md" />
       <Title order={3}>Inputs</Title>
       <Group align="stretch">
-        {profile.mappings?.length == 0 && (
-          <>
-            <Button variant="filled" onClick={() => loadDefaults(undefined)}>
-              Load defaults (direct)
+        <Button variant="filled" onClick={() => loadDefaults(undefined)}>
+          Load empty defaults
+        </Button>
+        {Object.values(deviceStatus)
+          .filter(hasDefaults)
+          .map((item) => (
+            <Button value={item.id} key={item.id} onClick={() => loadDefaults(item)}>
+              Load defaults for: {t(`devices.${item.type}`)} ({DeviceStatus.label(item)})
             </Button>
-            {Object.values(deviceStatus)
-              .filter(isInput)
-              .map((item) => (
-                <Button value={item.id} key={item.id} onClick={() => loadDefaults(item)}>
-                  Load defaults {t(`devices.${item.type}`)} ({DeviceStatus.label(item)})
-                </Button>
-              ))}
-          </>
-        )}
+          ))}
+      </Group>
+      <Group align="stretch">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
             items={profile.mappings?.map((mapping, mappingIdx) => mappingIdx)!}
@@ -2179,7 +2264,7 @@ function Profile({ profileIdx }: { profileIdx: number }) {
                 );
               }}
             >
-              Add Activation Method
+              Add Assignment
             </Menu.Item>
             <Menu.Item
               leftSection={<IconPlus size={14} />}
@@ -2225,7 +2310,7 @@ export function InputsPage() {
     return (
       <Layout>
         <RequireDevice>
-          <Loader/>
+          <Loader />
         </RequireDevice>
       </Layout>
     );
@@ -2233,25 +2318,7 @@ export function InputsPage() {
   return (
     <Layout>
       <RequireDevice>
-        <Tabs
-          value={(activeProfile ?? 0).toString()}
-          onChange={setActiveProfile}
-          keepMounted={false}
-        >
-          <Tabs.List>
-            {profiles.map((x, i) => (
-              <InputsTab value={x.name} idx={i} key={i} />
-            ))}
-            <Tabs.Tab value="add" onClick={addProfile}>
-              <IconPlus size={14} />
-            </Tabs.Tab>
-          </Tabs.List>
-          {profiles.map((x, profileIdx) => (
-            <Tabs.Panel value={profileIdx.toString()} key={profileIdx}>
-              <Profile profileIdx={profileIdx}></Profile>
-            </Tabs.Panel>
-          ))}
-        </Tabs>
+        <Profile profileIdx={activeProfile}></Profile>
       </RequireDevice>
     </Layout>
   );

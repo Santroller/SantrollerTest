@@ -28,7 +28,7 @@
     "midi": "MIDI",
     "debug": "Debug",
     "ads1115": "ADS1115 Multiplexer",
-    "accelerometer": "MPU-6050 / LIS3DH / ADXL345 Multiplexer",
+    "accelerometer": "MPU-6050 / LIS3DH / ADXL345 Accelerometer",
     "ws2812": "WS2812 LEDs",
     "apa102": "APA102 LEDs",
     "STP16CPC": "STP16CPC LED Driver"

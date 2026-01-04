@@ -119,7 +119,7 @@ export class DeviceStatus {
 }
 export interface ConfigState {
   deviceStatus: { [id: string]: DeviceStatus };
-  mappingStatus: { [id: number]: MappingStatus }[];
+  mappingStatus: { [id: number]: MappingStatus }[][];
   config: proto.IConfig;
   connected: boolean;
   hidDevice?: HIDDevice;
@@ -137,6 +137,9 @@ export interface Actions {
   updateProfile: (profile: proto.IProfile, id: number) => void;
   addProfile: () => void;
   deleteProfile: (id: number) => void;
+  addMode: () => void;
+  deleteMode: (id: number) => void;
+  updateMode: (mode: proto.IMode, id: number) => void;
   updateConfig: (config: proto.IConfig) => void;
   deleteDevice: (id: string) => void;
   connect: () => void;
@@ -145,6 +148,7 @@ export interface Actions {
   addDevice: (type: string) => void;
   onReport: (evt: HIDInputReportEvent) => void;
   setActiveProfile: (id: string | null) => void;
+  setActiveMode: (id: string | null) => void;
   sendKeepAlive: () => void;
   saveConfig: () => void;
   pollInputs: (poll: boolean) => void;
@@ -292,7 +296,7 @@ const WiiMappingsTrigger = {
 
 function createDefault(type: string, id: string) {
   let device = {};
-  const i2c = { sda: -1, scl: -1 };
+  const i2c = { sda: -1, scl: -1, clock: 100000  };
   const spi = { mosi: -1, miso: -1, sck: -1 };
   const uart = { tx: -1, rx: -1 };
   const mappingMode = proto.MappingMode.PerInput;
@@ -391,6 +395,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
       get().saveConfig();
     },
     setActiveProfile: (id: string | null) => {
+      if (id == "add") {
+        return;
+      }
       set((state) => {
         state.currentProfile = parseInt(id ?? '0');
       });
@@ -427,6 +434,69 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.mappingStatus = state.config.profiles!.map((profile) =>
           Object.fromEntries(profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)]))
         );
+      });
+      get().saveConfig();
+    },
+    setActiveMode: (id: string | null) => {
+      if (id == "add") {
+        return;
+      }
+      set((state) => {
+        state.currentProfile = parseInt(id ?? '0');
+      });
+      get().saveConfig();
+    },
+    updateMode: (profile: proto.IMode, id: number) => {
+      set((state) => {
+        if (state.config.profiles![id].faceButtonMappingMode != profile.faceButtonMappingMode) {
+          profile.mappings = profile.mappings?.map(fixInput);
+        }
+        state.config = {
+          ...state.config,
+          profiles: [
+            ...state.config.profiles!.map((prevProfile, prevIndex) =>
+              prevIndex == id ? profile : prevProfile
+            ),
+          ],
+        };
+        state.mappingStatus[id] = Object.fromEntries(
+          profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)])
+        );
+      });
+      get().saveConfig();
+    },
+    deleteMode: (id: number) => {
+      set((state) => {
+        if (state.currentProfile == id) {
+          state.currentProfile = Math.max(id - 1, 0);
+        }
+        state.config = {
+          ...state.config,
+          profiles: state.config.profiles?.filter((x, i) => i != id),
+        };
+        state.mappingStatus = state.config.profiles!.map((profile) =>
+          Object.fromEntries(profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)]))
+        );
+      });
+      get().saveConfig();
+    },
+    addMode: () => {
+      set((state) => {
+        state.config = {
+          ...state.config,
+          profiles: [
+            ...(state.config.profiles || []),
+            {
+              faceButtonMappingMode: proto.FaceButtonMappingMode.LegendBased,
+              deviceToEmulate: proto.SubType.Gamepad,
+              name: 'Device',
+              activationMethod: [],
+              mappings: [],
+            },
+          ],
+        };
+        state.currentProfile = state.config.profiles!.length - 1;
+        state.mappingStatus[state.config.profiles!.length - 1] = [];
       });
       get().saveConfig();
     },

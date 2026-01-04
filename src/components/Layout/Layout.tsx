@@ -6,35 +6,75 @@ import {
   IconDeviceGamepad3,
   IconGauge,
   IconHome2,
+  IconMoon,
+  IconPlus,
   IconSettings,
+  IconSun,
 } from '@tabler/icons-react';
-import { NavLink as RouterLink, useNavigate } from 'react-router-dom';
-import { AppShell, Badge, Burger, Group, Image, NavLink, Skeleton } from '@mantine/core';
+import {
+  Link as RouterLink,
+  NavLink as RouterNavLink,
+  useMatch,
+  useNavigate,
+} from 'react-router-dom';
+import {
+  ActionIcon,
+  AppShell,
+  Badge,
+  Burger,
+  Flex,
+  Grid,
+  Group,
+  Image,
+  NavLink,
+  Skeleton,
+  useMantineColorScheme,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { ColorSchemeToggle } from '../ColorSchemeToggle/ColorSchemeToggle';
 import { useConfigStore } from '../SettingsContext/SettingsContext';
 import classes from './Layout.module.css';
 
 export function Layout({ children }) {
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const [opened, { toggle }] = useDisclosure();
   const connected = useConfigStore((state) => state.connected);
   const pollInputs = useConfigStore((state) => state.pollInputs);
+  const activeProfile = useConfigStore((state) => state.currentProfile);
+  const profiles = useConfigStore((state) => state.config.profiles!);
+  const setActiveProfile = useConfigStore((state) => state.setActiveProfile);
+  const addProfile = useConfigStore((state) => state.addProfile);
   const nav = useNavigate();
+  const profilePage = useMatch('/profiles');
   return (
     <>
       <AppShell
-        header={{ height: 60 }}
+        header={{ height: 50 }}
         navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !opened } }}
         padding="md"
       >
         <AppShell.Header>
-          <Group h="100%" px="md">
-            <Image src="Icons/logoSide.png" height={40} fit="scale-down" alt="Norway" />
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-          </Group>
+          <Grid align="center">
+            <Grid.Col span="auto">
+              <Burger opened={opened} h={40} onClick={toggle} hiddenFrom="sm" size="sm" />
+            </Grid.Col>
+            <Grid.Col span={0}>
+              <Image src="Icons/logoSide.png" height={40} fit="scale-down" alt="santroller" />
+            </Grid.Col>
+            <Grid.Col span="auto">
+              <Flex justify="flex-end" align="center" direction="row" wrap="wrap">
+                <ActionIcon variant="filled" aria-label="Theme" onClick={toggleColorScheme}>
+                  {colorScheme == 'dark' && <IconSun />}
+                  {colorScheme == 'light' && <IconMoon />}
+                  {colorScheme == 'auto' && <IconMoon />}
+                </ActionIcon>
+              </Flex>
+            </Grid.Col>
+          </Grid>
         </AppShell.Header>
         <AppShell.Navbar p="md">
           <NavLink
-            component={RouterLink}
+            component={RouterNavLink}
             to="/"
             onClick={() => {
               pollInputs(false);
@@ -46,7 +86,7 @@ export function Layout({ children }) {
           {connected && (
             <>
               <NavLink
-                component={RouterLink}
+                component={RouterNavLink}
                 to="/devices"
                 onClick={() => {
                   pollInputs(false);
@@ -56,11 +96,39 @@ export function Layout({ children }) {
                 leftSection={<IconSettings size={16} stroke={1.5} />}
               />
               <NavLink
-                component={RouterLink}
-                to="/profiles"
+                href="#profiles"
                 label="Profiles"
                 leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
-              ></NavLink>
+                defaultOpened
+              >
+                {profiles.map((x, i) => (
+                  <NavLink
+                    component={RouterLink}
+                    to="/profiles"
+                    onClick={() => setActiveProfile(i.toString())}
+                    active={profilePage != null && activeProfile == i}
+                    label={x.name}
+                    leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
+                  >
+                    {profiles[i].modes!.map((x, i) => (
+                      <NavLink
+                        component={RouterLink}
+                        to="/profiles"
+                        onClick={() => setActiveProfile(i.toString())}
+                        active={profilePage != null && activeProfile == i}
+                        label={x.name}
+                        leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
+                      ></NavLink>
+                    ))}
+                  </NavLink>
+                ))}
+                <NavLink
+                  href="#add-profile"
+                  label="Add profile"
+                  onClick={addProfile}
+                  leftSection={<IconPlus size={16} stroke={1.5} />}
+                ></NavLink>
+              </NavLink>
             </>
           )}
         </AppShell.Navbar>
