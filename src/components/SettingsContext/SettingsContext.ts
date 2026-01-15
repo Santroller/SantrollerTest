@@ -119,7 +119,7 @@ export class DeviceStatus {
 }
 export interface ConfigState {
   deviceStatus: { [id: string]: DeviceStatus };
-  mappingStatus: { [id: number]: MappingStatus }[][];
+  mappingStatus: { [id: number]: MappingStatus }[];
   config: proto.IConfig;
   connected: boolean;
   hidDevice?: HIDDevice;
@@ -131,15 +131,13 @@ export interface ConfigState {
   keepaliveTimeout?: NodeJS.Timeout;
   currentProfile: number;
   lastProfile: number;
+  activeProfiles: number[];
 }
 export interface Actions {
   updateDevice: (device: proto.IDevice, id: string) => void;
   updateProfile: (profile: proto.IProfile, id: number) => void;
   addProfile: () => void;
   deleteProfile: (id: number) => void;
-  addMode: () => void;
-  deleteMode: (id: number) => void;
-  updateMode: (mode: proto.IMode, id: number) => void;
   updateConfig: (config: proto.IConfig) => void;
   deleteDevice: (id: string) => void;
   connect: () => void;
@@ -148,7 +146,6 @@ export interface Actions {
   addDevice: (type: string) => void;
   onReport: (evt: HIDInputReportEvent) => void;
   setActiveProfile: (id: string | null) => void;
-  setActiveMode: (id: string | null) => void;
   sendKeepAlive: () => void;
   saveConfig: () => void;
   pollInputs: (poll: boolean) => void;
@@ -394,14 +391,24 @@ export const useConfigStore = create<ConfigState & Actions>()(
       });
       get().saveConfig();
     },
-    setActiveProfile: (id: string | null) => {
+    setActiveProfile: async (id: string | null) => {
       if (id == "add") {
         return;
       }
       set((state) => {
+        state.lastProfile = state.currentProfile;
         state.currentProfile = parseInt(id ?? '0');
       });
-      get().saveConfig();
+      const state = get();
+      const infoBuffer = proto.SetProfileCommand.encode(
+        proto.SetProfileCommand.create({
+          profileId: parseInt(id ?? '0')
+        })
+      ).finish();
+      await state.hidDevice?.sendFeatureReport(
+        proto.ReportId.ReportIdSetActiveProfile,
+        infoBuffer as Buffer<ArrayBuffer>
+      );
     },
     updateProfile: (profile: proto.IProfile, id: number) => {
       set((state) => {
@@ -434,69 +441,6 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.mappingStatus = state.config.profiles!.map((profile) =>
           Object.fromEntries(profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)]))
         );
-      });
-      get().saveConfig();
-    },
-    setActiveMode: (id: string | null) => {
-      if (id == "add") {
-        return;
-      }
-      set((state) => {
-        state.currentProfile = parseInt(id ?? '0');
-      });
-      get().saveConfig();
-    },
-    updateMode: (profile: proto.IMode, id: number) => {
-      set((state) => {
-        if (state.config.profiles![id].faceButtonMappingMode != profile.faceButtonMappingMode) {
-          profile.mappings = profile.mappings?.map(fixInput);
-        }
-        state.config = {
-          ...state.config,
-          profiles: [
-            ...state.config.profiles!.map((prevProfile, prevIndex) =>
-              prevIndex == id ? profile : prevProfile
-            ),
-          ],
-        };
-        state.mappingStatus[id] = Object.fromEntries(
-          profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)])
-        );
-      });
-      get().saveConfig();
-    },
-    deleteMode: (id: number) => {
-      set((state) => {
-        if (state.currentProfile == id) {
-          state.currentProfile = Math.max(id - 1, 0);
-        }
-        state.config = {
-          ...state.config,
-          profiles: state.config.profiles?.filter((x, i) => i != id),
-        };
-        state.mappingStatus = state.config.profiles!.map((profile) =>
-          Object.fromEntries(profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)]))
-        );
-      });
-      get().saveConfig();
-    },
-    addMode: () => {
-      set((state) => {
-        state.config = {
-          ...state.config,
-          profiles: [
-            ...(state.config.profiles || []),
-            {
-              faceButtonMappingMode: proto.FaceButtonMappingMode.LegendBased,
-              deviceToEmulate: proto.SubType.Gamepad,
-              name: 'Device',
-              activationMethod: [],
-              mappings: [],
-            },
-          ],
-        };
-        state.currentProfile = state.config.profiles!.length - 1;
-        state.mappingStatus[state.config.profiles!.length - 1] = [];
       });
       get().saveConfig();
     },
@@ -725,6 +669,8 @@ export const useConfigStore = create<ConfigState & Actions>()(
               name: 'Device',
               activationMethod: [],
               mappings: [],
+              defaultProfile: false,
+              uid: Math.max(...(state.config.profiles?.map(x => x.uid) || [0])) + 1
             },
           ],
         };
@@ -781,20 +727,18 @@ export const useConfigStore = create<ConfigState & Actions>()(
       const buffer = proto.Config.encode(config).finish();
       const crc = new CRC32().calculate(buffer);
       // Don't write if nothing has changed
-      if (crc == state.crc && state.lastProfile == state.currentProfile) {
+      if (crc == state.crc) {
         return;
       }
       set((state) => {
         state.writing = true;
         state.crc = crc;
-        state.lastProfile = state.currentProfile;
       });
       const infoBuffer = proto.ConfigInfo.encode(
         proto.ConfigInfo.create({
           dataSize: buffer.length,
           dataCrc: crc,
-          magic,
-          currentProfile: state.currentProfile,
+          magic
         })
       ).finish();
       console.log(infoBuffer.length)
@@ -818,6 +762,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       set((state) => {
         state.writing = false;
       });
+      state.setActiveProfile(state.currentProfile.toString());
     },
     connect: async () => {
       const devices = await navigator.hid.requestDevice({
@@ -844,6 +789,11 @@ export const useConfigStore = create<ConfigState & Actions>()(
           data.set(new Uint8Array(slice.buffer).slice(1), start);
           start += slice.byteLength - 1;
         }
+        const profileData = await device.receiveFeatureReport(proto.ReportId.ReportIdGetActiveProfiles);
+        const activeProfiles = proto.GetActiveProfiles.decode(
+          new Uint8Array(profileData.buffer).slice(1),
+          profileData.byteLength - 1
+        );
         if (new CRC32().calculate(data) != info.dataCrc) {
           console.log('CRC didnt match!');
         }
@@ -858,8 +808,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
               hidDevice: device,
               crc: info.dataCrc,
               keepaliveTimeout: timeout,
-              currentProfile: info.currentProfile,
-              lastProfile: info.currentProfile,
+              activeProfiles: activeProfiles.profiles
             }),
             true
           );

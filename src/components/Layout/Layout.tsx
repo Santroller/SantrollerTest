@@ -41,6 +41,7 @@ export function Layout({ children }) {
   const connected = useConfigStore((state) => state.connected);
   const pollInputs = useConfigStore((state) => state.pollInputs);
   const activeProfile = useConfigStore((state) => state.currentProfile);
+  const activeProfiles = useConfigStore((state) => state.activeProfiles);
   const profiles = useConfigStore((state) => state.config.profiles!);
   const setActiveProfile = useConfigStore((state) => state.setActiveProfile);
   const addProfile = useConfigStore((state) => state.addProfile);
@@ -103,24 +104,15 @@ export function Layout({ children }) {
               >
                 {profiles.map((x, i) => (
                   <NavLink
+                    key={x.uid}
                     component={RouterLink}
                     to="/profiles"
                     onClick={() => setActiveProfile(i.toString())}
                     active={profilePage != null && activeProfile == i}
                     label={x.name}
                     leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
-                  >
-                    {profiles[i].modes!.map((x, i) => (
-                      <NavLink
-                        component={RouterLink}
-                        to="/profiles"
-                        onClick={() => setActiveProfile(i.toString())}
-                        active={profilePage != null && activeProfile == i}
-                        label={x.name}
-                        leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
-                      ></NavLink>
-                    ))}
-                  </NavLink>
+                    rightSection={activeProfiles?.includes(x.uid) && <Badge>Active</Badge>}
+                  />
                 ))}
                 <NavLink
                   href="#add-profile"

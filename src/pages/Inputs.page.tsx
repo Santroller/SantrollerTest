@@ -53,6 +53,7 @@ import {
   SimpleGrid,
   Slider,
   Space,
+  Switch,
   Tabs,
   Text,
   TextInput,
@@ -61,7 +62,6 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useMounted, useTimeout } from '@mantine/hooks';
 import { PinBox } from '@/components/Devices/Pins';
-import { Inputs } from '@/components/Inputs/Inputs';
 import { Layout } from '@/components/Layout/Layout';
 import { RequireDevice } from '@/components/RequireDevice/RequireDevice';
 import { proto } from '@/components/SettingsContext/config';
@@ -620,6 +620,573 @@ function FixLabel(mode: proto.FaceButtonMappingMode, label: string) {
   }
   return label;
 }
+function SantrollerInput({
+  input,
+  axis,
+  button,
+  dispatch,
+}: {
+  input: proto.IInput;
+  axis: boolean;
+  button: boolean;
+  dispatch: (input: proto.IInput) => void;
+}) {
+  const [opened, { open, close }] = useDisclosure(false);
+  const { t } = useTranslation();
+  const deviceStatus = useConfigStore((state) => state.deviceStatus);
+  const deviceCombobox = useCombobox({
+    onDropdownClose: () => deviceCombobox.resetSelectedOption(),
+  });
+  const inputCombobox = useCombobox({
+    onDropdownClose: () => inputCombobox.resetSelectedOption(),
+  });
+  const outputCombobox = useCombobox({
+    onDropdownClose: () => outputCombobox.resetSelectedOption(),
+  });
+  const pinModeCombobox = useCombobox({
+    onDropdownClose: () => pinModeCombobox.resetSelectedOption(),
+  });
+  const triggerModeCombobox = useCombobox({
+    onDropdownClose: () => triggerModeCombobox.resetSelectedOption(),
+  });
+  const inputLabel =
+    t(`wii.inputs.${proto.WiiAxisType[input.wiiAxis?.axis ?? -1]}`) ||
+    t(`wii.inputs.${proto.WiiButtonType[input.wiiButton?.button ?? -1]}`) ||
+    t(`crkd.inputs.${proto.CrkdNeckButtonType[input.crkd?.button ?? -1]}`) ||
+    (input.gpio && t(AllPinsNamed[input.gpio.pin]?.label, AllPinsNamed[input.gpio.pin]));
+
+  const analogInput = input.gpio?.analog || input.ads1115 || input.wiiAxis;
+  let deviceValue = '';
+  let device: DeviceStatus | null = null;
+  if (input.mpr121) {
+    device = deviceStatus[input.mpr121.deviceid];
+  } else if (input.wiiAxis) {
+    device = deviceStatus[input.wiiAxis.deviceid];
+  } else if (input.crkd) {
+    device = deviceStatus[input.crkd.deviceid];
+  } else if (input.wiiButton) {
+    device = deviceStatus[input.wiiButton.deviceid];
+  } else if (input.gh5Neck) {
+    device = deviceStatus[input.gh5Neck.deviceid];
+  } else if (input.accelerometer) {
+    device = deviceStatus[input.accelerometer.deviceid];
+  } else if (input.gpio && input.gpio.analog) {
+    deviceValue = t(`devices.gpio_analog`);
+  } else if (input.gpio) {
+    deviceValue = t(`devices.gpio_digital`);
+  } else if (input.ads1115) {
+    deviceValue = t(`devices.ads1115`);
+  } else if (input.mouseAxis) {
+    deviceValue = t(`devices.mouseAxis`);
+  } else if (input.mouseButton) {
+    deviceValue = t(`devices.mouseButton`);
+  } else if (input.key) {
+    deviceValue = t(`devices.key`);
+  }
+  if (device) {
+    deviceValue = `${t(`devices.${device.type}`)} (${DeviceStatus.label(device)})`;
+  }
+  return (
+    <>
+      {(deviceCombobox.dropdownOpened && (
+        <Combobox
+          store={deviceCombobox}
+          onOptionSubmit={(val) => {
+            deviceCombobox.closeDropdown();
+            // setDeviceValue(val);
+            if (isNumberLike(val)) {
+              switch (deviceStatus[parseInt(val)].type) {
+                case 'wii':
+                  if (axis) {
+                    dispatch({
+                      wiiAxis: {
+                        axis: proto.WiiAxisType.WiiAxisClassicLeftStickX,
+                        deviceid: parseInt(val),
+                      },
+                    });
+                  } else if (button) {
+                    dispatch({
+                      wiiButton: {
+                        button: proto.WiiButtonType.WiiButtonClassicA,
+                        deviceid: parseInt(val),
+                      },
+                    });
+                  }
+                  break;
+                case 'ads1115':
+                  dispatch({
+                    ads1115: {
+                      channel: 0,
+                      deviceid: parseInt(val),
+                    },
+                  });
+                  break;
+                case 'accelerometer':
+                  dispatch({
+                    accelerometer: {
+                      type: proto.AccelerometerInputType.AccelerometerX,
+                      deviceid: parseInt(val),
+                    },
+                  });
+                  break;
+                case 'crkdNeck':
+                  if (button) {
+                    dispatch({
+                      crkd: {
+                        button: proto.CrkdNeckButtonType.CrkdGreen,
+                        deviceid: parseInt(val),
+                      },
+                    });
+                  }
+                  break;
+                case 'gh5Neck':
+                  if (button) {
+                    dispatch({
+                      gh5Neck: {
+                        button: proto.Gh5NeckButtonType.Gh5Green,
+                        deviceid: parseInt(val),
+                      },
+                    });
+                  }
+                  break;
+              }
+              return;
+            }
+            switch (val) {
+              case 'gpio_analog':
+                dispatch({
+                  gpio: { pin: -1, analog: true, pinMode: proto.PinMode.Floating },
+                });
+                break;
+              case 'gpio_digital':
+                dispatch({
+                  gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp },
+                });
+                break;
+            }
+          }}
+        >
+          <Combobox.Target>
+            <InputBase
+              label="Device"
+              component="button"
+              type="button"
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => deviceCombobox.toggleDropdown()}
+            >
+              {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
+            </InputBase>
+          </Combobox.Target>
+
+          <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+            <Combobox.Options>
+              {Object.values(deviceStatus)
+                .filter(isInput)
+                .map((item) => (
+                  <Combobox.Option value={item.id} key={item.id}>
+                    {t(`devices.${item.type}`)} ({DeviceStatus.label(item)})
+                  </Combobox.Option>
+                ))}
+              <Combobox.Option value="gpio_analog">{t('devices.gpio_analog')}</Combobox.Option>
+              <Combobox.Option value="gpio_digital">{t('devices.gpio_digital')}</Combobox.Option>
+            </Combobox.Options>
+          </Combobox.Dropdown>
+        </Combobox>
+      )) || (
+        <InputBase
+          label="Device"
+          component="button"
+          type="button"
+          pointer
+          rightSection={<Combobox.Chevron />}
+          rightSectionPointerEvents="none"
+          onClick={() => deviceCombobox.toggleDropdown()}
+        >
+          {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
+        </InputBase>
+      )}
+      <Space h="md" />
+      {input.wiiAxis &&
+        ((inputCombobox.dropdownOpened && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const axis = proto.WiiAxisType[val as keyof typeof proto.WiiAxisType];
+              if (axis !== undefined) {
+                dispatch({ wiiAxis: { ...input.wiiAxis!, axis } });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {t(`wii.inputs.${proto.WiiAxisType[input.wiiAxis?.axis ?? -1]}`)}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.WiiAxisType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`wii.inputs.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )) || (
+          <InputBase
+            label="Input"
+            component="button"
+            type="button"
+            pointer
+            rightSection={<Combobox.Chevron />}
+            rightSectionPointerEvents="none"
+            onClick={() => inputCombobox.toggleDropdown()}
+          >
+            {t(`wii.inputs.${proto.WiiAxisType[input.wiiAxis?.axis ?? -1]}`)}
+          </InputBase>
+        ))}
+      {input.wiiButton &&
+        ((inputCombobox.dropdownOpened && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const button = proto.WiiButtonType[val as keyof typeof proto.WiiButtonType];
+              if (button !== undefined) {
+                dispatch({ wiiButton: { ...input.wiiButton!, button } });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {t(`wii.inputs.${proto.WiiButtonType[input.wiiButton?.button ?? -1]}`)}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.WiiButtonType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`wii.inputs.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )) || (
+          <InputBase
+            label="Input"
+            component="button"
+            type="button"
+            pointer
+            rightSection={<Combobox.Chevron />}
+            rightSectionPointerEvents="none"
+            onClick={() => inputCombobox.toggleDropdown()}
+          >
+            {t(`wii.inputs.${proto.WiiButtonType[input.wiiButton?.button ?? -1]}`)}
+          </InputBase>
+        ))}
+      {input.crkd &&
+        ((inputCombobox.dropdownOpened && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const button = proto.CrkdNeckButtonType[val as keyof typeof proto.CrkdNeckButtonType];
+              console.log(button);
+              if (button !== undefined) {
+                dispatch({ crkd: { ...input.crkd!, button } });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {t(`crkd.inputs.${proto.CrkdNeckButtonType[input.crkd?.button ?? -1]}`)}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.CrkdNeckButtonType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )) || (
+          <InputBase
+            label="Input"
+            component="button"
+            type="button"
+            pointer
+            rightSection={<Combobox.Chevron />}
+            rightSectionPointerEvents="none"
+            onClick={() => inputCombobox.toggleDropdown()}
+          >
+            {proto.CrkdNeckButtonType[input.crkd?.button ?? -1] || (
+              <Input.Placeholder>Pick value</Input.Placeholder>
+            )}
+          </InputBase>
+        ))}
+      {input.gh5Neck &&
+        ((inputCombobox.dropdownOpened && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const button = proto.Gh5NeckButtonType[val as keyof typeof proto.Gh5NeckButtonType];
+              console.log(button);
+              if (button !== undefined) {
+                dispatch({ gh5Neck: { ...input.gh5Neck!, button } });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {t(`gh5Neck.inputs.${proto.Gh5NeckButtonType[input.gh5Neck?.button ?? -1]}`)}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.Gh5NeckButtonType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )) || (
+          <InputBase
+            label="Input"
+            component="button"
+            type="button"
+            pointer
+            rightSection={<Combobox.Chevron />}
+            rightSectionPointerEvents="none"
+            onClick={() => inputCombobox.toggleDropdown()}
+          >
+            {proto.Gh5NeckButtonType[input.gh5Neck?.button ?? -1] || (
+              <Input.Placeholder>Pick value</Input.Placeholder>
+            )}
+          </InputBase>
+        ))}
+      {input.gpio && (
+        <>
+          <PinBox
+            label="Pin"
+            valid={input.gpio.analog ? AnalogPinsNamed : AllPinsNamed}
+            pin={input.gpio.pin}
+            dispatch={(pin) => dispatch({ gpio: { ...input.gpio!, pin } })}
+          />
+          {(pinModeCombobox.dropdownOpened && (
+            <Combobox
+              store={pinModeCombobox}
+              onOptionSubmit={(val) => {
+                dispatch({
+                  ...input,
+                  gpio: {
+                    ...input.gpio!,
+                    pinMode: proto.PinMode[val as keyof typeof proto.PinMode],
+                  },
+                });
+                pinModeCombobox.closeDropdown();
+              }}
+            >
+              <Combobox.Target>
+                <InputBase
+                  label="Pin Mode"
+                  component="button"
+                  type="button"
+                  pointer
+                  rightSection={<Combobox.Chevron />}
+                  rightSectionPointerEvents="none"
+                  onClick={() => pinModeCombobox.toggleDropdown()}
+                >
+                  {proto.PinMode[input.gpio.pinMode] || (
+                    <Input.Placeholder>Pick value</Input.Placeholder>
+                  )}
+                </InputBase>
+              </Combobox.Target>
+
+              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+                <Combobox.Options>
+                  {Object.keys(proto.PinMode).map((item) => (
+                    <Combobox.Option value={item} key={item}>
+                      {item}
+                    </Combobox.Option>
+                  ))}
+                </Combobox.Options>
+              </Combobox.Dropdown>
+            </Combobox>
+          )) || (
+            <InputBase
+              label="Pin Mode"
+              component="button"
+              type="button"
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => pinModeCombobox.toggleDropdown()}
+            >
+              {proto.PinMode[input.gpio.pinMode] || (
+                <Input.Placeholder>Pick value</Input.Placeholder>
+              )}
+            </InputBase>
+          )}
+        </>
+      )}
+      {input.ads1115 && (
+        <>
+          {(pinModeCombobox.dropdownOpened && (
+            <Combobox
+              store={pinModeCombobox}
+              onOptionSubmit={(val) => {
+                dispatch({
+                  ...input,
+                  ads1115: {
+                    ...input.ads1115!,
+                    channel: parseInt(val),
+                  },
+                });
+                pinModeCombobox.closeDropdown();
+              }}
+            >
+              <Combobox.Target>
+                <InputBase
+                  label="Channel"
+                  component="button"
+                  type="button"
+                  pointer
+                  rightSection={<Combobox.Chevron />}
+                  rightSectionPointerEvents="none"
+                  onClick={() => pinModeCombobox.toggleDropdown()}
+                >
+                  {input.ads1115.channel}
+                </InputBase>
+              </Combobox.Target>
+
+              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+                <Combobox.Options>
+                  <Combobox.Option value="0">Channel 0</Combobox.Option>
+                  <Combobox.Option value="1">Channel 1</Combobox.Option>
+                  <Combobox.Option value="2">Channel 2</Combobox.Option>
+                  <Combobox.Option value="3">Channel 3</Combobox.Option>
+                </Combobox.Options>
+              </Combobox.Dropdown>
+            </Combobox>
+          )) || (
+            <InputBase
+              label="Channel"
+              component="button"
+              type="button"
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => pinModeCombobox.toggleDropdown()}
+            >
+              {input.ads1115.channel}
+            </InputBase>
+          )}
+        </>
+      )}
+      {input.accelerometer &&
+        ((inputCombobox.dropdownOpened && (
+          <Combobox
+            store={inputCombobox}
+            onOptionSubmit={(val) => {
+              const type =
+                proto.AccelerometerInputType[val as keyof typeof proto.AccelerometerInputType];
+              console.log(type);
+              if (type !== undefined) {
+                dispatch({ accelerometer: { ...input.accelerometer!, type } });
+              }
+              inputCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Input"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => inputCombobox.toggleDropdown()}
+              >
+                {t(
+                  `accelerometer.inputs.${proto.AccelerometerInputType[input.crkd?.button ?? -1]}`
+                )}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.AccelerometerInputType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {item}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )) || (
+          <InputBase
+            label="Input"
+            component="button"
+            type="button"
+            pointer
+            rightSection={<Combobox.Chevron />}
+            rightSectionPointerEvents="none"
+            onClick={() => inputCombobox.toggleDropdown()}
+          >
+            {proto.AccelerometerInputType[input.accelerometer?.type ?? -1] || (
+              <Input.Placeholder>Pick value</Input.Placeholder>
+            )}
+          </InputBase>
+        ))}
+    </>
+  );
+}
 function SantrollerMapping({
   mapping,
   type,
@@ -760,555 +1327,12 @@ function SantrollerMapping({
           mapping={mapping}
         ></OutputBox>
         <Space h="md" />
-        {(deviceCombobox.dropdownOpened && (
-          <Combobox
-            store={deviceCombobox}
-            onOptionSubmit={(val) => {
-              deviceCombobox.closeDropdown();
-              // setDeviceValue(val);
-              if (isNumberLike(val)) {
-                switch (deviceStatus[parseInt(val)].type) {
-                  case 'wii':
-                    if (axis) {
-                      dispatch({
-                        ...mapping,
-                        input: {
-                          wiiAxis: {
-                            axis: proto.WiiAxisType.WiiAxisClassicLeftStickX,
-                            deviceid: parseInt(val),
-                          },
-                        },
-                      });
-                    } else if (button) {
-                      dispatch({
-                        ...mapping,
-                        input: {
-                          wiiButton: {
-                            button: proto.WiiButtonType.WiiButtonClassicA,
-                            deviceid: parseInt(val),
-                          },
-                        },
-                      });
-                    }
-                    break;
-                  case 'ads1115':
-                    dispatch({
-                      ...mapping,
-                      input: {
-                        ads1115: {
-                          channel: 0,
-                          deviceid: parseInt(val),
-                        },
-                      },
-                    });
-                    break;
-                  case 'accelerometer':
-                    dispatch({
-                      ...mapping,
-                      input: {
-                        accelerometer: {
-                          type: proto.AccelerometerInputType.AccelerometerX,
-                          deviceid: parseInt(val),
-                        },
-                      },
-                    });
-                    break;
-                  case 'crkdNeck':
-                    if (button) {
-                      dispatch({
-                        ...mapping,
-                        input: {
-                          crkd: {
-                            button: proto.CrkdNeckButtonType.CrkdGreen,
-                            deviceid: parseInt(val),
-                          },
-                        },
-                      });
-                    }
-                    break;
-                  case 'gh5Neck':
-                    if (button) {
-                      dispatch({
-                        ...mapping,
-                        input: {
-                          gh5Neck: {
-                            button: proto.Gh5NeckButtonType.Gh5Green,
-                            deviceid: parseInt(val),
-                          },
-                        },
-                      });
-                    }
-                    break;
-                }
-                return;
-              }
-              switch (val) {
-                case 'gpio_analog':
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      gpio: { pin: -1, analog: true, pinMode: proto.PinMode.Floating },
-                    },
-                  });
-                  break;
-                case 'gpio_digital':
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp },
-                    },
-                  });
-                  break;
-              }
-            }}
-          >
-            <Combobox.Target>
-              <InputBase
-                label="Device"
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => deviceCombobox.toggleDropdown()}
-              >
-                {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
-              </InputBase>
-            </Combobox.Target>
-
-            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-              <Combobox.Options>
-                {Object.values(deviceStatus)
-                  .filter(isInput)
-                  .map((item) => (
-                    <Combobox.Option value={item.id} key={item.id}>
-                      {t(`devices.${item.type}`)} ({DeviceStatus.label(item)})
-                    </Combobox.Option>
-                  ))}
-                <Combobox.Option value="gpio_analog">{t('devices.gpio_analog')}</Combobox.Option>
-                <Combobox.Option value="gpio_digital">{t('devices.gpio_digital')}</Combobox.Option>
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
-        )) || (
-          <InputBase
-            label="Device"
-            component="button"
-            type="button"
-            pointer
-            rightSection={<Combobox.Chevron />}
-            rightSectionPointerEvents="none"
-            onClick={() => deviceCombobox.toggleDropdown()}
-          >
-            {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
-          </InputBase>
-        )}
-        <Space h="md" />
-        {mapping.input.wiiAxis &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const axis = proto.WiiAxisType[val as keyof typeof proto.WiiAxisType];
-                if (axis !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { wiiAxis: { ...mapping.input.wiiAxis!, axis } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`wii.inputs.${proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.WiiAxisType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(`wii.inputs.${item}`)}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {t(`wii.inputs.${proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1]}`)}
-            </InputBase>
-          ))}
-        {mapping.input.wiiButton &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const button = proto.WiiButtonType[val as keyof typeof proto.WiiButtonType];
-                if (button !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { wiiButton: { ...mapping.input.wiiButton!, button } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`wii.inputs.${proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.WiiButtonType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(`wii.inputs.${item}`)}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {t(`wii.inputs.${proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1]}`)}
-            </InputBase>
-          ))}
-        {mapping.input.crkd &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const button =
-                  proto.CrkdNeckButtonType[val as keyof typeof proto.CrkdNeckButtonType];
-                console.log(button);
-                if (button !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { crkd: { ...mapping.input.crkd!, button } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.CrkdNeckButtonType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {item}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1] || (
-                <Input.Placeholder>Pick value</Input.Placeholder>
-              )}
-            </InputBase>
-          ))}
-        {mapping.input.gh5Neck &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const button = proto.Gh5NeckButtonType[val as keyof typeof proto.Gh5NeckButtonType];
-                console.log(button);
-                if (button !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { gh5Neck: { ...mapping.input.gh5Neck!, button } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(
-                    `gh5Neck.inputs.${proto.Gh5NeckButtonType[mapping.input.gh5Neck?.button ?? -1]}`
-                  )}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.Gh5NeckButtonType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {item}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {proto.Gh5NeckButtonType[mapping.input.gh5Neck?.button ?? -1] || (
-                <Input.Placeholder>Pick value</Input.Placeholder>
-              )}
-            </InputBase>
-          ))}
-        {mapping.input.gpio && (
-          <>
-            <PinBox
-              label="Pin"
-              valid={mapping.input.gpio.analog ? AnalogPinsNamed : AllPinsNamed}
-              pin={mapping.input.gpio.pin}
-              dispatch={(pin) =>
-                dispatch({
-                  ...mapping,
-                  input: { ...mapping.input, gpio: { ...mapping.input.gpio!, pin } },
-                })
-              }
-            />
-            {(pinModeCombobox.dropdownOpened && (
-              <Combobox
-                store={pinModeCombobox}
-                onOptionSubmit={(val) => {
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      ...mapping.input,
-                      gpio: {
-                        ...mapping.input.gpio!,
-                        pinMode: proto.PinMode[val as keyof typeof proto.PinMode],
-                      },
-                    },
-                  });
-                  pinModeCombobox.closeDropdown();
-                }}
-              >
-                <Combobox.Target>
-                  <InputBase
-                    label="Pin Mode"
-                    component="button"
-                    type="button"
-                    pointer
-                    rightSection={<Combobox.Chevron />}
-                    rightSectionPointerEvents="none"
-                    onClick={() => pinModeCombobox.toggleDropdown()}
-                  >
-                    {proto.PinMode[mapping.input.gpio.pinMode] || (
-                      <Input.Placeholder>Pick value</Input.Placeholder>
-                    )}
-                  </InputBase>
-                </Combobox.Target>
-
-                <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                  <Combobox.Options>
-                    {Object.keys(proto.PinMode).map((item) => (
-                      <Combobox.Option value={item} key={item}>
-                        {item}
-                      </Combobox.Option>
-                    ))}
-                  </Combobox.Options>
-                </Combobox.Dropdown>
-              </Combobox>
-            )) || (
-              <InputBase
-                label="Pin Mode"
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => pinModeCombobox.toggleDropdown()}
-              >
-                {proto.PinMode[mapping.input.gpio.pinMode] || (
-                  <Input.Placeholder>Pick value</Input.Placeholder>
-                )}
-              </InputBase>
-            )}
-          </>
-        )}
-        {mapping.input.ads1115 && (
-          <>
-            {(pinModeCombobox.dropdownOpened && (
-              <Combobox
-                store={pinModeCombobox}
-                onOptionSubmit={(val) => {
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      ...mapping.input,
-                      ads1115: {
-                        ...mapping.input.ads1115!,
-                        channel: parseInt(val),
-                      },
-                    },
-                  });
-                  pinModeCombobox.closeDropdown();
-                }}
-              >
-                <Combobox.Target>
-                  <InputBase
-                    label="Channel"
-                    component="button"
-                    type="button"
-                    pointer
-                    rightSection={<Combobox.Chevron />}
-                    rightSectionPointerEvents="none"
-                    onClick={() => pinModeCombobox.toggleDropdown()}
-                  >
-                    {mapping.input.ads1115.channel}
-                  </InputBase>
-                </Combobox.Target>
-
-                <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                  <Combobox.Options>
-                    <Combobox.Option value="0">Channel 0</Combobox.Option>
-                    <Combobox.Option value="1">Channel 1</Combobox.Option>
-                    <Combobox.Option value="2">Channel 2</Combobox.Option>
-                    <Combobox.Option value="3">Channel 3</Combobox.Option>
-                  </Combobox.Options>
-                </Combobox.Dropdown>
-              </Combobox>
-            )) || (
-              <InputBase
-                label="Channel"
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => pinModeCombobox.toggleDropdown()}
-              >
-                {mapping.input.ads1115.channel}
-              </InputBase>
-            )}
-          </>
-        )}
-        {mapping.input.accelerometer &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const type =
-                  proto.AccelerometerInputType[val as keyof typeof proto.AccelerometerInputType];
-                console.log(type);
-                if (type !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { accelerometer: { ...mapping.input.accelerometer!, type } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(
-                    `accelerometer.inputs.${proto.AccelerometerInputType[mapping.input.crkd?.button ?? -1]}`
-                  )}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.AccelerometerInputType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {item}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {proto.AccelerometerInputType[mapping.input.accelerometer?.type ?? -1] || (
-                <Input.Placeholder>Pick value</Input.Placeholder>
-              )}
-            </InputBase>
-          ))}
+        <SantrollerInput
+          axis={!!axis}
+          button={!!button}
+          input={mapping.input}
+          dispatch={(input) => dispatch({ ...mapping, input })}
+        ></SantrollerInput>
         <Space h="md" />
         {button && analogInput && (
           <>
@@ -1398,8 +1422,26 @@ function SantrollerMapping({
             />
           </>
         )}
+        {axis && !analogInput && (
+          <>
+            <Text size="sm">Released value</Text>
+            <Slider
+              value={mapping.released!}
+              min={0}
+              max={65535}
+              onChange={(val) => dispatch({ ...mapping, released: val })}
+            />
+            <Text size="sm">Pressed value</Text>
+            <Slider
+              value={mapping.pressed!}
+              min={0}
+              max={65535}
+              onChange={(val) => dispatch({ ...mapping, pressed: val })}
+            />
+          </>
+        )}
         {button && <StateBox mappingIdx={mappingIdx} profileIdx={profileIdx}></StateBox>}
-        {axis && (
+        {axis && analogInput && (
           <>
             <StateSlider
               mappingIdx={mappingIdx}
@@ -1487,7 +1529,7 @@ function SantrollerActivationTrigger({
   profileIdx: number;
   mappingIdx: number;
   mode: proto.FaceButtonMappingMode;
-  dispatch: (mapping: proto.IMapping) => void;
+  dispatch: (mapping: proto.IActivationTrigger) => void;
   deleteInput: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isSorting } = useSortable({
@@ -1514,33 +1556,39 @@ function SantrollerActivationTrigger({
   const pinModeCombobox = useCombobox({
     onDropdownClose: () => pinModeCombobox.resetSelectedOption(),
   });
+  if (!mapping.input) {
+    return;
+  }
   const inputLabel =
-    t(`wii.inputs.${proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1]}`) ||
-    t(`wii.inputs.${proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1]}`) ||
-    t(`crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1]}`) ||
-    (mapping.input.gpio &&
-      t(AllPinsNamed[mapping.input.gpio.pin]?.label, AllPinsNamed[mapping.input.gpio.pin]));
+    t(`wii.inputs.${proto.WiiAxisType[mapping.input.input.wiiAxis?.axis ?? -1]}`) ||
+    t(`wii.inputs.${proto.WiiButtonType[mapping.input.input.wiiButton?.button ?? -1]}`) ||
+    t(`crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.input.crkd?.button ?? -1]}`) ||
+    (mapping.input.input.gpio &&
+      t(
+        AllPinsNamed[mapping.input.input.gpio.pin]?.label,
+        AllPinsNamed[mapping.input.input.gpio.pin]
+      ));
   let fixedLabel = FixLabel(mode, inputLabel!);
   let deviceValue = '';
   let img = '';
   let device: DeviceStatus | null = null;
-  if (mapping.input.mpr121) {
-    device = deviceStatus[mapping.input.mpr121.deviceid];
-  } else if (mapping.input.wiiAxis) {
-    device = deviceStatus[mapping.input.wiiAxis.deviceid];
-  } else if (mapping.input.wiiExtType) {
-    device = deviceStatus[mapping.input.wiiExtType.deviceid];
-  } else if (mapping.input.crkd) {
-    device = deviceStatus[mapping.input.crkd.deviceid];
-  } else if (mapping.input.wiiButton) {
-    device = deviceStatus[mapping.input.wiiButton.deviceid];
-  } else if (mapping.input.gpio) {
+  if (mapping.input.input.mpr121) {
+    device = deviceStatus[mapping.input.input.mpr121.deviceid];
+  } else if (mapping.input.input.wiiAxis) {
+    device = deviceStatus[mapping.input.input.wiiAxis.deviceid];
+  } else if (mapping.input.input.wiiExtType) {
+    device = deviceStatus[mapping.input.input.wiiExtType.deviceid];
+  } else if (mapping.input.input.crkd) {
+    device = deviceStatus[mapping.input.input.crkd.deviceid];
+  } else if (mapping.input.input.wiiButton) {
+    device = deviceStatus[mapping.input.input.wiiButton.deviceid];
+  } else if (mapping.input.input.gpio) {
     deviceValue = t(`devices.gpio`);
-  } else if (mapping.input.mouseAxis) {
+  } else if (mapping.input.input.mouseAxis) {
     deviceValue = t(`devices.mouseAxis`);
-  } else if (mapping.input.mouseButton) {
+  } else if (mapping.input.input.mouseButton) {
     deviceValue = t(`devices.mouseButton`);
-  } else if (mapping.input.key) {
+  } else if (mapping.input.input.key) {
     deviceValue = t(`devices.key`);
   }
   if (device) {
@@ -1580,391 +1628,13 @@ function SantrollerActivationTrigger({
           </Center>
         </Card.Section>
         <Space h="md" />
-        {(deviceCombobox.dropdownOpened && (
-          <Combobox
-            store={deviceCombobox}
-            onOptionSubmit={(val) => {
-              deviceCombobox.closeDropdown();
-              // setDeviceValue(val);
-              if (isNumberLike(val)) {
-                switch (deviceStatus[parseInt(val)].type) {
-                  case 'wii':
-                    dispatch({
-                      ...mapping,
-                      input: {
-                        wiiExtType: {
-                          ext: proto.WiiExtType.WiiClassicController,
-                          deviceid: parseInt(val),
-                        },
-                      },
-                    });
-                    break;
-                  case 'crkdNeck':
-                    dispatch({
-                      ...mapping,
-                      input: {
-                        crkd: {
-                          button: proto.CrkdNeckButtonType.CrkdGreen,
-                          deviceid: parseInt(val),
-                        },
-                      },
-                    });
-                    break;
-                  // case 'accelerometer':
-                  //   dispatch({
-                  //     ...mapping,
-                  //     input: {
-                  //       accelerometer: {
-                  //         button: proto.CrkdNeckButtonType.CrkdGreen,
-                  //         deviceid: parseInt(val),
-                  //       },
-                  //     },
-                  //   });
-                  //   break;
-                }
-                return;
-              }
-              switch (val) {
-                case 'gpio':
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp },
-                    },
-                  });
-                  break;
-              }
-            }}
-          >
-            <Combobox.Target>
-              <InputBase
-                label="Device"
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => deviceCombobox.toggleDropdown()}
-              >
-                {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
-              </InputBase>
-            </Combobox.Target>
 
-            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-              <Combobox.Options>
-                {Object.values(deviceStatus)
-                  .filter(isInput)
-                  .map((item) => (
-                    <Combobox.Option value={item.id} key={item.id}>
-                      {t(`devices.${item.type}`)} ({DeviceStatus.label(item)})
-                    </Combobox.Option>
-                  ))}
-                <Combobox.Option value="gpio">{t('devices.gpio')}</Combobox.Option>
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
-        )) || (
-          <InputBase
-            label="Device"
-            component="button"
-            type="button"
-            pointer
-            rightSection={<Combobox.Chevron />}
-            rightSectionPointerEvents="none"
-            onClick={() => deviceCombobox.toggleDropdown()}
-          >
-            {deviceValue || <Input.Placeholder>Pick value</Input.Placeholder>}
-          </InputBase>
-        )}
-        <Space h="md" />
-        {mapping.input.wiiAxis &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const axis = proto.WiiAxisType[val as keyof typeof proto.WiiAxisType];
-                if (axis !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { wiiAxis: { ...mapping.input.wiiAxis!, axis } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`wii.inputs.${proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.WiiAxisType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(`wii.inputs.${item}`)}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {t(`wii.inputs.${proto.WiiAxisType[mapping.input.wiiAxis?.axis ?? -1]}`)}
-            </InputBase>
-          ))}
-        {mapping.input.wiiExtType &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const ext = proto.WiiExtType[val as keyof typeof proto.WiiExtType];
-                if (ext !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { wiiExtType: { ...mapping.input.wiiExtType!, ext } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Extension"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`wii.extensions.${proto.WiiExtType[mapping.input.wiiExtType?.ext ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.WiiExtType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(`wii.extensions.${item}`)}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Extension"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {t(`wii.extensions.${proto.WiiExtType[mapping.input.wiiExtType?.ext ?? -1]}`)}
-            </InputBase>
-          ))}
-        {mapping.input.wiiButton &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const button = proto.WiiButtonType[val as keyof typeof proto.WiiButtonType];
-                if (button !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { wiiButton: { ...mapping.input.wiiButton!, button } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`wii.inputs.${proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.WiiButtonType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(`wii.inputs.${item}`)}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {t(`wii.inputs.${proto.WiiButtonType[mapping.input.wiiButton?.button ?? -1]}`)}
-            </InputBase>
-          ))}
-        {mapping.input.crkd &&
-          ((inputCombobox.dropdownOpened && (
-            <Combobox
-              store={inputCombobox}
-              onOptionSubmit={(val) => {
-                const button =
-                  proto.CrkdNeckButtonType[val as keyof typeof proto.CrkdNeckButtonType];
-                console.log('submit');
-                console.log(button);
-                if (button !== undefined) {
-                  dispatch({
-                    ...mapping,
-                    input: { crkd: { ...mapping.input.crkd!, button } },
-                  });
-                }
-                inputCombobox.closeDropdown();
-              }}
-            >
-              <Combobox.Target>
-                <InputBase
-                  label="Input"
-                  component="button"
-                  type="button"
-                  pointer
-                  rightSection={<Combobox.Chevron />}
-                  rightSectionPointerEvents="none"
-                  onClick={() => inputCombobox.toggleDropdown()}
-                >
-                  {t(`crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1]}`)}
-                </InputBase>
-              </Combobox.Target>
-
-              <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                <Combobox.Options>
-                  {Object.keys(proto.CrkdNeckButtonType).map((item) => (
-                    <Combobox.Option value={item} key={item}>
-                      {t(
-                        `crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1]}`
-                      )}
-                    </Combobox.Option>
-                  ))}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          )) || (
-            <InputBase
-              label="Input"
-              component="button"
-              type="button"
-              pointer
-              rightSection={<Combobox.Chevron />}
-              rightSectionPointerEvents="none"
-              onClick={() => inputCombobox.toggleDropdown()}
-            >
-              {proto.CrkdNeckButtonType[mapping.input.crkd?.button ?? -1] || (
-                <Input.Placeholder>Pick value</Input.Placeholder>
-              )}
-            </InputBase>
-          ))}
-        {mapping.input.gpio && (
-          <>
-            <PinBox
-              label="Pin"
-              valid={AllPinsNamed}
-              pin={mapping.input.gpio.pin}
-              dispatch={(pin) =>
-                dispatch({
-                  ...mapping,
-                  input: { ...mapping.input, gpio: { ...mapping.input.gpio!, pin } },
-                })
-              }
-            />
-            {(pinModeCombobox.dropdownOpened && (
-              <Combobox
-                store={pinModeCombobox}
-                onOptionSubmit={(val) => {
-                  dispatch({
-                    ...mapping,
-                    input: {
-                      ...mapping.input,
-                      gpio: {
-                        ...mapping.input.gpio!,
-                        pinMode: proto.PinMode[val as keyof typeof proto.PinMode],
-                      },
-                    },
-                  });
-                  pinModeCombobox.closeDropdown();
-                }}
-              >
-                <Combobox.Target>
-                  <InputBase
-                    label="Pin Mode"
-                    component="button"
-                    type="button"
-                    pointer
-                    rightSection={<Combobox.Chevron />}
-                    rightSectionPointerEvents="none"
-                    onClick={() => pinModeCombobox.toggleDropdown()}
-                  >
-                    {proto.PinMode[mapping.input.gpio.pinMode] || (
-                      <Input.Placeholder>Pick value</Input.Placeholder>
-                    )}
-                  </InputBase>
-                </Combobox.Target>
-
-                <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
-                  <Combobox.Options>
-                    {Object.keys(proto.PinMode).map((item) => (
-                      <Combobox.Option value={item} key={item}>
-                        {item}
-                      </Combobox.Option>
-                    ))}
-                  </Combobox.Options>
-                </Combobox.Dropdown>
-              </Combobox>
-            )) || (
-              <InputBase
-                label="Pin Mode"
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => pinModeCombobox.toggleDropdown()}
-              >
-                {proto.PinMode[mapping.input.gpio.pinMode] || (
-                  <Input.Placeholder>Pick value</Input.Placeholder>
-                )}
-              </InputBase>
-            )}
-          </>
-        )}
+        <SantrollerInput
+          axis={false}
+          button={true}
+          input={mapping.input.input}
+          dispatch={(input) => dispatch({ ...mapping, input: {input} })}
+        ></SantrollerInput>
         <Space h="md" />
         {/* {button && <StateBox mappingIdx={mappingIdx} profileIdx={profileIdx}></StateBox>} */}
       </Card>
@@ -2068,6 +1738,13 @@ function Profile({ profileIdx }: { profileIdx: number }) {
       />
       <Button variant="filled" color="red" onClick={() => deleteProfile(profileIdx)}>
         Delete profile
+      </Button>
+      <Button
+        variant="filled"
+        disabled={profile.defaultProfile}
+        onClick={() => updateProfile({ ...profile, defaultProfile: true }, profileIdx)}
+      >
+        Make profile default
       </Button>
       {(combobox.dropdownOpened && (
         <Combobox
@@ -2258,7 +1935,7 @@ function Profile({ profileIdx }: { profileIdx: number }) {
                 updateProfile(
                   {
                     ...profile,
-                    activationMethod: [...profile.activationMethod!, { input: {} }],
+                    activationMethod: [...profile.activationMethod!, { input: { input: {} } }],
                   },
                   profileIdx
                 );
