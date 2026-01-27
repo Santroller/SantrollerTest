@@ -35,7 +35,7 @@ import { ColorSchemeToggle } from '../ColorSchemeToggle/ColorSchemeToggle';
 import { useConfigStore } from '../SettingsContext/SettingsContext';
 import classes from './Layout.module.css';
 
-export function Layout({ children }) {
+export function Layout({ children }: { children: React.ReactNode }) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const [opened, { toggle }] = useDisclosure();
   const connected = useConfigStore((state) => state.connected);
@@ -121,6 +121,16 @@ export function Layout({ children }) {
                   leftSection={<IconPlus size={16} stroke={1.5} />}
                 ></NavLink>
               </NavLink>
+              <NavLink
+                component={RouterNavLink}
+                to="/assign"
+                onClick={() => {
+                  pollInputs(false);
+                  nav('/assign');
+                }}
+                label="Profile Assign"
+                leftSection={<IconSettings size={16} stroke={1.5} />}
+              />
             </>
           )}
         </AppShell.Navbar>

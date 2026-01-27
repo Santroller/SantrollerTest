@@ -173,6 +173,7 @@ function InitState(config: proto.Config): ConfigState {
     polling: false,
     currentProfile: 0,
     lastProfile: 0,
+    activeProfiles: [],
   };
 }
 
@@ -293,7 +294,7 @@ const WiiMappingsTrigger = {
 
 function createDefault(type: string, id: string) {
   let device = {};
-  const i2c = { sda: -1, scl: -1, clock: 100000  };
+  const i2c = { sda: -1, scl: -1, clock: 100000 };
   const spi = { mosi: -1, miso: -1, sck: -1 };
   const uart = { tx: -1, rx: -1 };
   const mappingMode = proto.MappingMode.PerInput;
@@ -392,7 +393,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       get().saveConfig();
     },
     setActiveProfile: async (id: string | null) => {
-      if (id == "add") {
+      if (id == 'add') {
         return;
       }
       set((state) => {
@@ -400,13 +401,15 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.currentProfile = parseInt(id ?? '0');
       });
       const state = get();
-      const infoBuffer = proto.SetProfileCommand.encode(
-        proto.SetProfileCommand.create({
-          profileId: parseInt(id ?? '0')
+      const infoBuffer = proto.Command.encode(
+        proto.Command.create({
+          setProfile: proto.SetProfileCommand.create({
+            profileId: parseInt(id ?? '0'),
+          }),
         })
       ).finish();
       await state.hidDevice?.sendFeatureReport(
-        proto.ReportId.ReportIdSetActiveProfile,
+        proto.ReportId.ReportIdCommand,
         infoBuffer as Buffer<ArrayBuffer>
       );
     },
@@ -667,10 +670,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
               faceButtonMappingMode: proto.FaceButtonMappingMode.LegendBased,
               deviceToEmulate: proto.SubType.Gamepad,
               name: 'Device',
-              activationMethod: [],
+              assignments: [],
               mappings: [],
-              defaultProfile: false,
-              uid: Math.max(...(state.config.profiles?.map(x => x.uid) || [0])) + 1
+              uid: Math.max(...(state.config.profiles?.map((x) => x.uid) || [0])) + 1,
             },
           ],
         };
@@ -738,10 +740,10 @@ export const useConfigStore = create<ConfigState & Actions>()(
         proto.ConfigInfo.create({
           dataSize: buffer.length,
           dataCrc: crc,
-          magic
+          magic,
         })
       ).finish();
-      console.log(infoBuffer.length)
+      console.log(infoBuffer.length);
       await state.hidDevice.sendFeatureReport(
         proto.ReportId.ReportIdConfigInfo,
         infoBuffer as Buffer<ArrayBuffer>
@@ -789,7 +791,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
           data.set(new Uint8Array(slice.buffer).slice(1), start);
           start += slice.byteLength - 1;
         }
-        const profileData = await device.receiveFeatureReport(proto.ReportId.ReportIdGetActiveProfiles);
+        const profileData = await device.receiveFeatureReport(
+          proto.ReportId.ReportIdGetActiveProfiles
+        );
         const activeProfiles = proto.GetActiveProfiles.decode(
           new Uint8Array(profileData.buffer).slice(1),
           profileData.byteLength - 1
@@ -808,7 +812,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
               hidDevice: device,
               crc: info.dataCrc,
               keepaliveTimeout: timeout,
-              activeProfiles: activeProfiles.profiles
+              activeProfiles: activeProfiles.profiles,
             }),
             true
           );

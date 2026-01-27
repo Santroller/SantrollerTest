@@ -25,7 +25,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from 'react-router-dom';
+import { Navigate, useNavigation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Accordion,
@@ -1515,22 +1515,337 @@ function SantrollerMapping({
   );
 }
 
-function SantrollerActivationTrigger({
+type ProfileAssignmentTypes = keyof proto.IProfileAssignmentInfo;
+const AllProfileAssignmentTypes: ProfileAssignmentTypes[] = [
+  'catchall',
+  'consoleType',
+  'wiiExt',
+  'ps2Cnt',
+  'usbType',
+  'usbDevice',
+  'input',
+  'inputAnyTime',
+  'midiChannel',
+];
+const SingleProfileAssignmentTypes: ProfileAssignmentTypes[] = [
+  'catchall',
+  'wiiExt',
+  'ps2Cnt',
+  'usbType',
+  'usbDevice',
+  'midiChannel',
+];
+const MultiProfileAssignmentTypes: ProfileAssignmentTypes[] = AllProfileAssignmentTypes.filter(x => !SingleProfileAssignmentTypes.includes(x));
+function SantrollerAssignment({
+  mapping,
+  type,
+  profileIdx,
+  mappingIdx,
+  mode,
+  filterSingle,
+  dispatch,
+  deleteAssignment: deleteInput,
+}: {
+  mapping: proto.IProfileAssignmentInfo;
+  type: proto.SubType;
+  profileIdx: number;
+  mappingIdx: number;
+  mode: proto.FaceButtonMappingMode;
+  filterSingle: boolean;
+  dispatch: (mapping: proto.IProfileAssignmentInfo) => void;
+  deleteAssignment: () => void;
+}) {
+  const [opened, { open, close }] = useDisclosure(false);
+  const { t } = useTranslation();
+  const deviceStatus = useConfigStore((state) => state.deviceStatus);
+  const assignmentTypeCombobox = useCombobox({
+    onDropdownClose: () => assignmentTypeCombobox.resetSelectedOption(),
+  });
+  const typeCombobox = useCombobox({
+    onDropdownClose: () => typeCombobox.resetSelectedOption(),
+  });
+  const types = filterSingle? MultiProfileAssignmentTypes : AllProfileAssignmentTypes;
+  const label = t("assignmentType."+types.filter((x) => mapping[x]));
+  const base = useMemo(
+    () => (
+      <InputBase
+        label="Assignment Type"
+        component="button"
+        type="button"
+        pointer
+        rightSection={<Combobox.Chevron />}
+        rightSectionPointerEvents="none"
+        onClick={() => assignmentTypeCombobox.toggleDropdown()}
+      >
+        {label || <Input.Placeholder>Pick value</Input.Placeholder>}
+      </InputBase>
+    ),
+    [label]
+  );
+  return (
+    <>
+      <Modal opened={opened} onClose={close} title={t('delete_assignment_dialog.title')} centered>
+        {t('delete_assignment_dialog.desc')}
+        <Space h="md" />
+        <Flex justify="flex-end">
+          <Group align="flex-end">
+            <Button
+              onClick={() => {
+                deleteInput();
+                close();
+              }}
+              color="red"
+            >
+              {t('delete_assignment_dialog.confirm')}
+            </Button>
+            <Button onClick={close}>{t('delete_assignment_dialog.cancel')}</Button>
+          </Group>
+        </Flex>
+      </Modal>
+      <Card shadow="sm" padding="lg" radius="md" withBorder w="350px">
+        <Card.Section>
+          {!mapping.catchall && (
+            <ActionIcon color="red" style={{ position: 'absolute', top: 0, right: 0 }}>
+              <IconTrash style={{ width: '70%', height: '70%' }} onClick={open} />
+            </ActionIcon>
+          )}
+        </Card.Section>
+        <Space h="md" />
+
+        <Combobox
+          store={assignmentTypeCombobox}
+          onOptionSubmit={(val) => {
+            switch (val as ProfileAssignmentTypes) {
+              case 'catchall':
+                dispatch({ catchall: true });
+                break;
+              case 'consoleType':
+                dispatch({
+                  catchall: false,
+                  consoleType: proto.ConsoleType.ConsolePC,
+                });
+                break;
+              case 'wiiExt':
+                dispatch({
+                  catchall: false,
+                  wiiExt: proto.WiiExtType.WiiClassicController,
+                });
+                break;
+              case 'ps2Cnt':
+                dispatch({
+                  catchall: false,
+                  ps2Cnt: proto.PS2ControllerType.PS2ControllerTypeDigital,
+                });
+                break;
+              case 'usbType':
+                dispatch({ catchall: false, usbType: proto.SubType.Gamepad });
+                break;
+              case 'usbDevice':
+                dispatch({ catchall: false, usbDevice: { vid: 0, pid: 0 } });
+                break;
+              case 'input':
+                dispatch({
+                  catchall: false,
+                  input: { input: {} },
+                });
+                break;
+              case 'inputAnyTime':
+                dispatch({
+                  catchall: false,
+                  inputAnyTime: { input: {} },
+                });
+                break;
+              case 'midiChannel':
+                dispatch({
+                  catchall: false,
+                  midiChannel: 10,
+                });
+                break;
+            }
+            assignmentTypeCombobox.closeDropdown();
+          }}
+        >
+          <Combobox.Target>{base}</Combobox.Target>
+
+          <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+            <Combobox.Options>
+              {types.map((item) => (
+                <Combobox.Option value={item} key={item}>
+                  {t(`assignmentType.${FixLabel(mode, item)}`)}
+                </Combobox.Option>
+              ))}
+            </Combobox.Options>
+          </Combobox.Dropdown>
+        </Combobox>
+        {mapping.usbType && (
+          <Combobox
+            store={typeCombobox}
+            onOptionSubmit={(val) => {
+              mapping.usbType = proto.SubType[val as keyof typeof proto.SubType];
+              typeCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Usb Controller Type"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => typeCombobox.toggleDropdown()}
+              >
+                {t(`subType.${proto.SubType[mapping.usbType]}`) || <Input.Placeholder>Pick value</Input.Placeholder>}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.SubType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`subType.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.consoleType && (
+          <Combobox
+            store={typeCombobox}
+            onOptionSubmit={(val) => {
+              mapping.consoleType = proto.ConsoleType[val as keyof typeof proto.ConsoleType];
+              typeCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Plugged in device type"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => typeCombobox.toggleDropdown()}
+              >
+                {t(`consoleType.${proto.ConsoleType[mapping.consoleType]}`) || <Input.Placeholder>Pick value</Input.Placeholder>}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.ConsoleType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`consoleType.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.wiiExt && (
+          <Combobox
+            store={typeCombobox}
+            onOptionSubmit={(val) => {
+              mapping.wiiExt = proto.WiiExtType[val as keyof typeof proto.WiiExtType];
+              typeCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="Wii extension type"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => typeCombobox.toggleDropdown()}
+              >
+                {t(`wii.extensions.${proto.WiiExtType[mapping.wiiExt]}`) || <Input.Placeholder>Pick value</Input.Placeholder>}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.WiiExtType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`wii.extensions.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.ps2Cnt && (
+          <Combobox
+            store={typeCombobox}
+            onOptionSubmit={(val) => {
+              mapping.ps2Cnt = proto.PS2ControllerType[val as keyof typeof proto.PS2ControllerType];
+              typeCombobox.closeDropdown();
+            }}
+          >
+            <Combobox.Target>
+              <InputBase
+                label="PS2 Controller Type"
+                component="button"
+                type="button"
+                pointer
+                rightSection={<Combobox.Chevron />}
+                rightSectionPointerEvents="none"
+                onClick={() => typeCombobox.toggleDropdown()}
+              >
+                {t(`psx.devices.${proto.PS2ControllerType[mapping.ps2Cnt]}`) || <Input.Placeholder>Pick value</Input.Placeholder>}
+              </InputBase>
+            </Combobox.Target>
+
+            <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+              <Combobox.Options>
+                {Object.keys(proto.PS2ControllerType).map((item) => (
+                  <Combobox.Option value={item} key={item}>
+                    {t(`psx.devices.${item}`)}
+                  </Combobox.Option>
+                ))}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
+        )}
+        {mapping.input && (
+          <SantrollerInput
+            axis={false}
+            button={true}
+            input={mapping.input.input}
+            dispatch={(input) => dispatch({ ...mapping, input: { input } })}
+          ></SantrollerInput>
+        )}
+        {mapping.inputAnyTime && (
+          <SantrollerInput
+            axis={false}
+            button={true}
+            input={mapping.inputAnyTime.input}
+            dispatch={(input) => dispatch({ ...mapping, inputAnyTime: { input } })}
+          ></SantrollerInput>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function SantrollerAssignmentList({
   mapping,
   type,
   profileIdx,
   mappingIdx,
   mode,
   dispatch,
-  deleteInput,
+  deleteAssignment: deleteInput,
 }: {
-  mapping: proto.IActivationTrigger;
+  mapping: proto.IProfileAssignment;
   type: proto.SubType;
   profileIdx: number;
   mappingIdx: number;
   mode: proto.FaceButtonMappingMode;
-  dispatch: (mapping: proto.IActivationTrigger) => void;
-  deleteInput: () => void;
+  dispatch: (mapping: proto.IProfileAssignment) => void;
+  deleteAssignment: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isSorting } = useSortable({
     id: mappingIdx,
@@ -1544,61 +1859,13 @@ function SantrollerActivationTrigger({
   const [opened, { open, close }] = useDisclosure(false);
   const { t } = useTranslation();
   const deviceStatus = useConfigStore((state) => state.deviceStatus);
-  const deviceCombobox = useCombobox({
-    onDropdownClose: () => deviceCombobox.resetSelectedOption(),
+  const assignmentTypeCombobox = useCombobox({
+    onDropdownClose: () => assignmentTypeCombobox.resetSelectedOption(),
   });
-  const inputCombobox = useCombobox({
-    onDropdownClose: () => inputCombobox.resetSelectedOption(),
-  });
-  const outputCombobox = useCombobox({
-    onDropdownClose: () => outputCombobox.resetSelectedOption(),
-  });
-  const pinModeCombobox = useCombobox({
-    onDropdownClose: () => pinModeCombobox.resetSelectedOption(),
-  });
-  if (!mapping.input) {
-    return;
-  }
-  const inputLabel =
-    t(`wii.inputs.${proto.WiiAxisType[mapping.input.input.wiiAxis?.axis ?? -1]}`) ||
-    t(`wii.inputs.${proto.WiiButtonType[mapping.input.input.wiiButton?.button ?? -1]}`) ||
-    t(`crkd.inputs.${proto.CrkdNeckButtonType[mapping.input.input.crkd?.button ?? -1]}`) ||
-    (mapping.input.input.gpio &&
-      t(
-        AllPinsNamed[mapping.input.input.gpio.pin]?.label,
-        AllPinsNamed[mapping.input.input.gpio.pin]
-      ));
-  let fixedLabel = FixLabel(mode, inputLabel!);
-  let deviceValue = '';
-  let img = '';
-  let device: DeviceStatus | null = null;
-  if (mapping.input.input.mpr121) {
-    device = deviceStatus[mapping.input.input.mpr121.deviceid];
-  } else if (mapping.input.input.wiiAxis) {
-    device = deviceStatus[mapping.input.input.wiiAxis.deviceid];
-  } else if (mapping.input.input.wiiExtType) {
-    device = deviceStatus[mapping.input.input.wiiExtType.deviceid];
-  } else if (mapping.input.input.crkd) {
-    device = deviceStatus[mapping.input.input.crkd.deviceid];
-  } else if (mapping.input.input.wiiButton) {
-    device = deviceStatus[mapping.input.input.wiiButton.deviceid];
-  } else if (mapping.input.input.gpio) {
-    deviceValue = t(`devices.gpio`);
-  } else if (mapping.input.input.mouseAxis) {
-    deviceValue = t(`devices.mouseAxis`);
-  } else if (mapping.input.input.mouseButton) {
-    deviceValue = t(`devices.mouseButton`);
-  } else if (mapping.input.input.key) {
-    deviceValue = t(`devices.key`);
-  }
-  if (device) {
-    deviceValue = `${t(`devices.${device.type}`)} (${DeviceStatus.label(device)})`;
-    img = `Icons/Input/${fixedLabel}.png`;
-  }
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
-      <Modal opened={opened} onClose={close} title={t('delete_device_dialog.title')} centered>
-        {t('delete_device_dialog.desc')}
+      <Modal opened={opened} onClose={close} title={t('delete_assignment_dialog.title')} centered>
+        {t('delete_assignment_dialog.desc')}
         <Space h="md" />
         <Flex justify="flex-end">
           <Group align="flex-end">
@@ -1609,34 +1876,60 @@ function SantrollerActivationTrigger({
               }}
               color="red"
             >
-              {t('delete_device_dialog.confirm')}
+              {t('delete_assignment_dialog.confirm')}
             </Button>
-            <Button onClick={close}>{t('delete_device_dialog.cancel')}</Button>
+            <Button onClick={close}>{t('delete_assignment_dialog.cancel')}</Button>
           </Group>
         </Flex>
       </Modal>
       <Card shadow="sm" padding="lg" radius="md" withBorder w="400px" h="100%">
-        <Card.Section h="60px">
+        <Card.Section h="10px">
           <div {...listeners} style={{ cursor: 'grab', position: 'absolute', top: 0, left: 0 }}>
             <IconGripVertical size={18} stroke={1.5} />
           </div>
-          <ActionIcon color="red" style={{ position: 'absolute', top: 0, right: 0 }}>
-            <IconTrash style={{ width: '70%', height: '70%' }} onClick={open} />
-          </ActionIcon>
-          <Center>
-            <Image src={img} height={75} w="auto" fit="contain" alt={img} />
-          </Center>
         </Card.Section>
         <Space h="md" />
-
-        <SantrollerInput
-          axis={false}
-          button={true}
-          input={mapping.input.input}
-          dispatch={(input) => dispatch({ ...mapping, input: {input} })}
-        ></SantrollerInput>
-        <Space h="md" />
-        {/* {button && <StateBox mappingIdx={mappingIdx} profileIdx={profileIdx}></StateBox>} */}
+        {mapping.assignments?.map((assignment, assignmentIdx) => (
+          <SantrollerAssignment
+            key={assignmentIdx}
+            mapping={assignment}
+            type={type}
+            filterSingle={mapping.assignments?.some(x => x != assignment && SingleProfileAssignmentTypes.some(y => x[y])) ?? false}
+            profileIdx={profileIdx}
+            mappingIdx={assignmentIdx}
+            mode={mode}
+            dispatch={(val) =>
+              dispatch({
+                ...mapping,
+                assignments: [
+                  ...mapping.assignments!.map((cAssignment, cAssignmentIdx) =>
+                    cAssignmentIdx == assignmentIdx ? val : cAssignment
+                  ),
+                ],
+              })
+            }
+            deleteAssignment={() =>
+              dispatch({
+                ...mapping,
+                assignments: [
+                  ...mapping.assignments!.filter(
+                    (_, cAssignmentIdx) => cAssignmentIdx != assignmentIdx
+                  ),
+                ],
+              })
+            }
+          />
+        ))}
+        <Button
+          onClick={() =>
+            dispatch({
+              ...mapping,
+              assignments: [...(mapping.assignments ?? []), { input: { input: {} } }],
+            })
+          }
+        >
+          {t('assignments.match')}
+        </Button>
       </Card>
     </div>
   );
@@ -1739,13 +2032,6 @@ function Profile({ profileIdx }: { profileIdx: number }) {
       <Button variant="filled" color="red" onClick={() => deleteProfile(profileIdx)}>
         Delete profile
       </Button>
-      <Button
-        variant="filled"
-        disabled={profile.defaultProfile}
-        onClick={() => updateProfile({ ...profile, defaultProfile: true }, profileIdx)}
-      >
-        Make profile default
-      </Button>
       {(combobox.dropdownOpened && (
         <Combobox
           store={combobox}
@@ -1809,22 +2095,41 @@ function Profile({ profileIdx }: { profileIdx: number }) {
         </>
       )}
       <Space h="md" />
-      <Title order={3}>Assignments</Title>
+      <Title order={3}>{t('assignments.title')}</Title>
+      <Input.Description c="dimmed">
+        Assigning profiles allows Santroller to pick the right profile depending on what you are
+        doing. For example, you can assign one profile if a guitar is plugged into an adapter, and a
+        different profile for a gamepad. All matchers need to match for a profile to be used.
+      </Input.Description>
+      <Input.Description c="dimmed">
+        The catch all matcher is special in that it will be used in any case where no profiles have
+        valid matches.
+      </Input.Description>
+      <Button
+        variant="filled"
+        onClick={() =>
+          updateProfile(
+            {
+              ...profile,
+              assignments: [
+                ...profile.assignments!,
+                { assignments: [{ catchall: false, input: { input: {} } }] },
+              ],
+            },
+            profileIdx
+          )
+        }
+      >
+        {t('assignments.add')}
+      </Button>
       <Group>
-        {profile.activationMethod?.length == 0 && (
-          <>
-            <Button variant="filled" onClick={() => loadDefaults(undefined)}>
-              Add assignment
-            </Button>
-          </>
-        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
-            items={profile.activationMethod?.map((mapping, mappingIdx) => mappingIdx)!}
+            items={profile.assignments?.map((mapping, mappingIdx) => mappingIdx)!}
             strategy={rectSortingStrategy}
           >
-            {profile.activationMethod?.map((mapping, mappingIdx) => (
-              <SantrollerActivationTrigger
+            {profile.assignments?.map((mapping, mappingIdx) => (
+              <SantrollerAssignmentList
                 key={mappingIdx}
                 mapping={mapping}
                 type={profile.deviceToEmulate}
@@ -1835,8 +2140,8 @@ function Profile({ profileIdx }: { profileIdx: number }) {
                   updateProfile(
                     {
                       ...profile,
-                      activationMethod: [
-                        ...profile.activationMethod!.map((cMapping, cMappingIdx) =>
+                      assignments: [
+                        ...profile.assignments!.map((cMapping, cMappingIdx) =>
                           cMappingIdx == mappingIdx ? val : cMapping
                         ),
                       ],
@@ -1844,12 +2149,12 @@ function Profile({ profileIdx }: { profileIdx: number }) {
                     profileIdx
                   )
                 }
-                deleteInput={() =>
+                deleteAssignment={() =>
                   updateProfile(
                     {
                       ...profile,
-                      activationMethod: [
-                        ...profile.activationMethod!.filter(
+                      assignments: [
+                        ...profile.assignments!.filter(
                           (_, cMappingIdx) => cMappingIdx != mappingIdx
                         ),
                       ],
@@ -1919,49 +2224,6 @@ function Profile({ profileIdx }: { profileIdx: number }) {
           </SortableContext>
         </DndContext>
       </Group>
-
-      <Affix position={{ bottom: 40, right: 40 }}>
-        <Menu shadow="md" width={150}>
-          <Menu.Target>
-            <ActionIcon color="blue" radius="xl" size={60}>
-              <IconPlus stroke={1.5} size={30} />
-            </ActionIcon>
-          </Menu.Target>
-
-          <Menu.Dropdown>
-            <Menu.Item
-              leftSection={<IconPlus size={14} />}
-              onClick={() => {
-                updateProfile(
-                  {
-                    ...profile,
-                    activationMethod: [...profile.activationMethod!, { input: { input: {} } }],
-                  },
-                  profileIdx
-                );
-              }}
-            >
-              Add Assignment
-            </Menu.Item>
-            <Menu.Item
-              leftSection={<IconPlus size={14} />}
-              onClick={() => {
-                updateProfile(
-                  {
-                    ...profile,
-                    mappings: [...profile.mappings!, { input: {} }],
-                  },
-                  profileIdx
-                );
-              }}
-            >
-              Add Input
-            </Menu.Item>
-            <Menu.Item leftSection={<IconRestore size={14} />}>Load Defaults</Menu.Item>
-            <Menu.Item leftSection={<IconTrash size={14} />}>Clear all</Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </Affix>
     </>
   );
 }
@@ -1983,6 +2245,9 @@ export function InputsPage() {
     1,
     { autoInvoke: true }
   );
+  if (!profiles[activeProfile]) {
+    return <Navigate to="/" />;
+  }
   if (!loaded) {
     return (
       <Layout>

@@ -14,7 +14,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useConfigStore } from '../SettingsContext/SettingsContext';
 import classes from './Layout.module.css';
 
-export function RequireDevice({ children }) {
+export function RequireDevice({ children }: { children: React.ReactNode }) {
   const connected = useConfigStore((state) => state.connected);
   if (!connected) {
     return <Navigate to="/" />;

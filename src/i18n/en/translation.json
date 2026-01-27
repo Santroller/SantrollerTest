@@ -231,6 +231,18 @@
     },
     "acknowledge": {
       "pin": "Acknowledge"
+    },
+    "devices": {
+      "PS2ControllerTypeDigital": "PS1 Gamepad",
+      "PS2ControllerTypeDualshock": "Dualshock 1 / PSX Analog Controller",
+      "PS2ControllerTypeDualshock2": "Dualshock 2",
+      "PS2ControllerTypeGuitar": "Guitar Hero Guitar",
+      "PS2ControllerTypeNegCon": "NeGcon Controller",
+      "PS2ControllerTypeJogCon": "Jogcon Controller",
+      "PS2ControllerTypeGunCon": "GunCon Controller",
+      "PS2ControllerTypeFlightStick": "Flight Stick Controller",
+      "PS2ControllerTypeMouse": "Mouse",
+      "PS2ControllerTypeTaiko": "Taiko Drum"
     }
   },
   "spi": {
@@ -264,9 +276,71 @@
     "confirm": "Delete device",
     "cancel": "Cancel"
   },
+  "delete_assignment_dialog": {
+    "title": "Deleting assignment",
+    "desc": "Are you sure you wish to delete this assignment?",
+    "confirm": "Delete assignment",
+    "cancel": "Cancel"
+  },
+  "assignments": {
+    "title": "Assignments",
+    "match": "Add match",
+    "add": "Add Assignment"
+  },
   "add_device_dialog": {
     "title": "Add device",
     "confirm": "Add device"
+  },
+  "assignmentType": {
+    "catchall": "Catch All",
+    "consoleType": "Match on device controller is plugged into",
+    "wiiExt": "Match on connected Wii Extension",
+    "ps2Cnt": "Match on connected PSX Controller",
+    "usbType": "Match on connected usb device type",
+    "usbDevice": "Match on specific usb device",
+    "input": "Match on input (at startup)",
+    "inputAnyTime": "Match on input (anytime)",
+    "midiChannel": "Match on MIDI channel"
+  },
+  "consoleType": {
+    "ConsoleWii_WiiU":"Wii / Wii U",
+    "ConsoleOgXbox": "OG Xbox",
+    "ConsoleXbox360": "Xbox 360",
+    "ConsoleXboxOne": "Xbox One / Series",
+    "ConsolePS2": "PS2",
+    "ConsolePS3": "PS3",
+    "ConsolePS4_PS5": "PS4 / PS5",
+    "ConsoleSwitch_Switch2": "Switch / Switch 2",
+    "ConsolePC": "Windows / Linux / macOS"
+  },
+  "subType": {
+    "Gamepad": "Gamepad",
+    "Dancepad": "Dancepad",
+    "GuitarHeroGuitar": "Guitar Hero Guitar",
+    "RockBandGuitar": "Rock Band Guitar",
+    "GuitarHeroDrums": "Guitar Hero Drums",
+    "RockBandDrums": "Rock Band Drums",
+    "LiveGuitar": "Guitar Hero Live Guitar",
+    "DjHeroTurntable": "DJ Hero Turntable",
+    "ProGuitarMustang": "Rock Band Mustang Pro Guitar",
+    "ProGuitarSquire": "Rock Band Squire Pro Guitar",
+    "ProKeys": "Rock Band Pro Keys",
+    "Taiko": "Taiko no Tatsujin Drum",
+    "StageKit": "Rock Band Stage Kit",
+    "KeyboardMouse": "Keyboard or Mouse",
+    "Wheel": "Wheel",
+    "DisneyInfinity": "Disney Infinity Portal",
+    "Skylanders": "Skylanders Portal",
+    "LegoDimensions": "Lego Dimensions Portal",
+    "FightStick": "Fight Stick",
+    "FlightStick": "Flight Stick",
+    "GuitarFreaks": "Guitar Freaks Guitar",
+    "PopNMusic": "PopNMusic Controller",
+    "DJMax": "DJ Max Turntable",
+    "ProjectDiva": "Project Diva Controller",
+    "PowerGigDrum": "Power Gig Drum",
+    "PowerGigGuitar": "Power Gig Guitar",
+    "RockRevolutionGuitar": "Rock Revolution Guitar"
   },
   "outputs": {
     "GamepadA": "Gamepad A/Cross",
