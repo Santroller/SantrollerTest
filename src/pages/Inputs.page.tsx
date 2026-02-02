@@ -72,13 +72,23 @@ function StateLabel({
   profileIdx,
   mappingIdx,
   raw,
+  activationBased,
 }: {
   profileIdx: number;
   mappingIdx: number;
   raw?: boolean;
+  activationBased?: boolean;
 }) {
-  const state = useConfigStore((state) => state.mappingStatus[profileIdx][mappingIdx].state);
-  const stateRaw = useConfigStore((state) => state.mappingStatus[profileIdx][mappingIdx].stateRaw);
+  const stateRaw = useConfigStore((state) =>
+    activationBased
+      ? state.activationStatus[profileIdx][mappingIdx].stateRaw
+      : state.mappingStatus[profileIdx][mappingIdx].stateRaw
+  );
+  const state = useConfigStore((state) =>
+    activationBased
+      ? state.activationStatus[profileIdx][mappingIdx].state
+      : state.mappingStatus[profileIdx][mappingIdx].state
+  );
   return <Center h="100%">{raw ? stateRaw : state}</Center>;
 }
 function StateSection({
@@ -90,6 +100,7 @@ function StateSection({
   deadzone,
   raw,
   trigger,
+  activationBased,
 }: {
   profileIdx: number;
   mappingIdx: number;
@@ -99,9 +110,18 @@ function StateSection({
   deadzone: number;
   raw?: boolean;
   trigger?: boolean;
+  activationBased?: boolean;
 }) {
-  const stateRaw = useConfigStore((state) => state.mappingStatus[profileIdx][mappingIdx].stateRaw);
-  const state = useConfigStore((state) => state.mappingStatus[profileIdx][mappingIdx].state);
+  const stateRaw = useConfigStore((state) =>
+    activationBased
+      ? state.activationStatus[profileIdx][mappingIdx].stateRaw
+      : state.mappingStatus[profileIdx][mappingIdx].stateRaw
+  );
+  const state = useConfigStore((state) =>
+    activationBased
+      ? state.activationStatus[profileIdx][mappingIdx].state
+      : state.mappingStatus[profileIdx][mappingIdx].state
+  );
   if (trigger) {
     const minPerc = (min / 65535) * 100;
     const maxPerc = (max / 65535) * 100;
@@ -151,6 +171,7 @@ function StateSlider({
   deadzone,
   raw,
   trigger,
+  activationBased,
 }: {
   profileIdx: number;
   mappingIdx: number;
@@ -160,6 +181,7 @@ function StateSlider({
   deadzone: number;
   raw?: boolean;
   trigger?: boolean;
+  activationBased?: boolean;
 }) {
   if (raw) {
     return (
@@ -167,7 +189,12 @@ function StateSlider({
         <Text size="sm">Raw Value</Text>
         <Progress.Root size={40} transitionDuration={0}>
           <Progress.Label w="100%" h="100%" style={{ position: 'absolute' }}>
-            <StateLabel mappingIdx={mappingIdx} profileIdx={profileIdx} raw></StateLabel>
+            <StateLabel
+              mappingIdx={mappingIdx}
+              profileIdx={profileIdx}
+              activationBased={activationBased}
+              raw
+            ></StateLabel>
           </Progress.Label>
           <StateSection
             mappingIdx={mappingIdx}
@@ -176,6 +203,7 @@ function StateSlider({
             min={min}
             max={max}
             deadzone={deadzone}
+            activationBased={activationBased}
             raw
             trigger
           ></StateSection>
@@ -189,7 +217,11 @@ function StateSlider({
       <Text size="sm">Value</Text>
       <Progress.Root size={40} transitionDuration={0}>
         <Progress.Label w="100%" h="100%" style={{ position: 'absolute' }}>
-          <StateLabel mappingIdx={mappingIdx} profileIdx={profileIdx}></StateLabel>
+          <StateLabel
+            mappingIdx={mappingIdx}
+            profileIdx={profileIdx}
+            activationBased={activationBased}
+          ></StateLabel>
         </Progress.Label>
         <StateSection
           mappingIdx={mappingIdx}
@@ -198,6 +230,7 @@ function StateSlider({
           min={min}
           max={max}
           deadzone={deadzone}
+          activationBased={activationBased}
         ></StateSection>
       </Progress.Root>
       <Space h="md" />
@@ -631,9 +664,24 @@ function SantrollerInput({
   button: boolean;
   dispatch: (input: proto.IInput) => void;
 }) {
+  let deviceId = -1;
+  if (input.mpr121) {
+    deviceId = input.mpr121.deviceid;
+  } else if (input.wiiAxis) {
+    deviceId = input.wiiAxis.deviceid;
+  } else if (input.crkd) {
+    deviceId = input.crkd.deviceid;
+  } else if (input.wiiButton) {
+    deviceId = input.wiiButton.deviceid;
+  } else if (input.gh5Neck) {
+    deviceId = input.gh5Neck.deviceid;
+  } else if (input.accelerometer) {
+    deviceId = input.accelerometer.deviceid;
+  }
   const [opened, { open, close }] = useDisclosure(false);
   const { t } = useTranslation();
-  const deviceStatus = useConfigStore((state) => state.deviceStatus);
+  const deviceStatus = useConfigStore.getState().deviceStatus
+  const device = useConfigStore((state) => state.deviceStatus[deviceId]);
   const deviceCombobox = useCombobox({
     onDropdownClose: () => deviceCombobox.resetSelectedOption(),
   });
@@ -657,20 +705,7 @@ function SantrollerInput({
 
   const analogInput = input.gpio?.analog || input.ads1115 || input.wiiAxis;
   let deviceValue = '';
-  let device: DeviceStatus | null = null;
-  if (input.mpr121) {
-    device = deviceStatus[input.mpr121.deviceid];
-  } else if (input.wiiAxis) {
-    device = deviceStatus[input.wiiAxis.deviceid];
-  } else if (input.crkd) {
-    device = deviceStatus[input.crkd.deviceid];
-  } else if (input.wiiButton) {
-    device = deviceStatus[input.wiiButton.deviceid];
-  } else if (input.gh5Neck) {
-    device = deviceStatus[input.gh5Neck.deviceid];
-  } else if (input.accelerometer) {
-    device = deviceStatus[input.accelerometer.deviceid];
-  } else if (input.gpio && input.gpio.analog) {
+  if (input.gpio && input.gpio.analog) {
     deviceValue = t(`devices.gpio_analog`);
   } else if (input.gpio) {
     deviceValue = t(`devices.gpio_digital`);
@@ -1213,9 +1248,23 @@ function SantrollerMapping({
     transition: isSorting ? transition : '',
     alignSelf: 'stretch',
   };
+  let deviceId = -1;
+  if (mapping.input.mpr121) {
+    deviceId = mapping.input.mpr121.deviceid;
+  } else if (mapping.input.wiiAxis) {
+    deviceId = mapping.input.wiiAxis.deviceid;
+  } else if (mapping.input.crkd) {
+    deviceId = mapping.input.crkd.deviceid;
+  } else if (mapping.input.wiiButton) {
+    deviceId = mapping.input.wiiButton.deviceid;
+  } else if (mapping.input.gh5Neck) {
+    deviceId = mapping.input.gh5Neck.deviceid;
+  } else if (mapping.input.accelerometer) {
+    deviceId = mapping.input.accelerometer.deviceid;
+  }
   const [opened, { open, close }] = useDisclosure(false);
   const { t } = useTranslation();
-  const deviceStatus = useConfigStore((state) => state.deviceStatus);
+  const device = useConfigStore((state) => state.deviceStatus[deviceId]);
   const deviceCombobox = useCombobox({
     onDropdownClose: () => deviceCombobox.resetSelectedOption(),
   });
@@ -1256,22 +1305,9 @@ function SantrollerMapping({
   const stick = label?.includes('Stick');
   const trigger = label?.includes('Trigger');
   const whammy = label?.includes('Whammy');
-  const analogInput = mapping.input.gpio?.analog || mapping.input.ads1115 || mapping.input.wiiAxis;
+  const analogInput = mapping.input.gpio?.analog || mapping.input.ads1115 || mapping.input.wiiAxis || mapping.input.accelerometer;
   let deviceValue = '';
-  let device: DeviceStatus | null = null;
-  if (mapping.input.mpr121) {
-    device = deviceStatus[mapping.input.mpr121.deviceid];
-  } else if (mapping.input.wiiAxis) {
-    device = deviceStatus[mapping.input.wiiAxis.deviceid];
-  } else if (mapping.input.crkd) {
-    device = deviceStatus[mapping.input.crkd.deviceid];
-  } else if (mapping.input.wiiButton) {
-    device = deviceStatus[mapping.input.wiiButton.deviceid];
-  } else if (mapping.input.gh5Neck) {
-    device = deviceStatus[mapping.input.gh5Neck.deviceid];
-  } else if (mapping.input.accelerometer) {
-    device = deviceStatus[mapping.input.accelerometer.deviceid];
-  } else if (mapping.input.gpio && mapping.input.gpio.analog) {
+  if (mapping.input.gpio && mapping.input.gpio.analog) {
     deviceValue = t(`devices.gpio_analog`);
   } else if (mapping.input.gpio) {
     deviceValue = t(`devices.gpio_digital`);
@@ -1538,9 +1574,135 @@ const SingleProfileAssignmentTypes: ProfileAssignmentTypes[] = [
 const MultiProfileAssignmentTypes: ProfileAssignmentTypes[] = AllProfileAssignmentTypes.filter(
   (x) => !SingleProfileAssignmentTypes.includes(x)
 );
+function ActivationTrigger({
+  input,
+  profileIdx,
+  activationIdx,
+  dispatch,
+}: {
+  input: proto.IInputActivationTrigger;
+  profileIdx: number;
+  activationIdx: number;
+  dispatch: (input: proto.IInputActivationTrigger) => void;
+}) {
+  const triggerModeCombobox = useCombobox({
+    onDropdownClose: () => triggerModeCombobox.resetSelectedOption(),
+  });
+  return (
+    <>
+      {(triggerModeCombobox.dropdownOpened && (
+        <Combobox
+          store={triggerModeCombobox}
+          onOptionSubmit={(val) => {
+            dispatch({
+              ...input,
+              trigger:
+                proto.AnalogToDigitalTriggerType[
+                  val as keyof typeof proto.AnalogToDigitalTriggerType
+                ],
+            });
+            triggerModeCombobox.closeDropdown();
+          }}
+        >
+          <Combobox.Target>
+            <InputBase
+              label="Channel"
+              component="button"
+              type="button"
+              pointer
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => triggerModeCombobox.toggleDropdown()}
+            >
+              {proto.AnalogToDigitalTriggerType[input.trigger!] || (
+                <Input.Placeholder>Pick value</Input.Placeholder>
+              )}
+            </InputBase>
+          </Combobox.Target>
+
+          <Combobox.Dropdown mah="300px" style={{ overflow: 'auto' }}>
+            <Combobox.Options>
+              {Object.keys(proto.AnalogToDigitalTriggerType).map((item) => (
+                <Combobox.Option value={item} key={item}>
+                  {item}
+                </Combobox.Option>
+              ))}
+            </Combobox.Options>
+          </Combobox.Dropdown>
+        </Combobox>
+      )) || (
+        <InputBase
+          label="Trigger Type"
+          component="button"
+          type="button"
+          pointer
+          rightSection={<Combobox.Chevron />}
+          rightSectionPointerEvents="none"
+          onClick={() => triggerModeCombobox.toggleDropdown()}
+        >
+          {proto.AnalogToDigitalTriggerType[input.trigger!] || (
+            <Input.Placeholder>Pick value</Input.Placeholder>
+          )}
+        </InputBase>
+      )}
+      {input.trigger == proto.AnalogToDigitalTriggerType.JoyHigh && (
+        <StateSlider
+          mappingIdx={activationIdx}
+          profileIdx={profileIdx}
+          center={32767}
+          min={input.triggerValue!}
+          max={65535}
+          deadzone={0}
+          raw
+          activationBased
+        ></StateSlider>
+      )}
+      {input.trigger == proto.AnalogToDigitalTriggerType.JoyLow && (
+        <StateSlider
+          mappingIdx={activationIdx}
+          profileIdx={profileIdx}
+          center={32767}
+          min={0}
+          max={input.triggerValue!}
+          deadzone={0}
+          raw
+          activationBased
+        ></StateSlider>
+      )}
+      {input.trigger == proto.AnalogToDigitalTriggerType.Range && (
+        <StateSlider
+          mappingIdx={activationIdx}
+          profileIdx={profileIdx}
+          center={32767}
+          min={input.triggerValue!}
+          max={input.maxTriggerValue!}
+          deadzone={0}
+          raw
+          activationBased
+        ></StateSlider>
+      )}
+      <Text size="sm">Trigger</Text>
+      <Slider
+        value={input.triggerValue!}
+        min={0}
+        max={65535}
+        onChange={(val) => dispatch({ ...input, triggerValue: val })}
+      />
+      {input.trigger == proto.AnalogToDigitalTriggerType.Range && (
+        <Slider
+          value={input.maxTriggerValue!}
+          min={0}
+          max={65535}
+          onChange={(val) => dispatch({ ...input, maxTriggerValue: val })}
+        />
+      )}
+    </>
+  );
+}
 function SantrollerAssignment({
   mapping,
   profileIdx,
+  activationIdx,
   mode,
   filterSingle,
   dispatch,
@@ -1548,6 +1710,7 @@ function SantrollerAssignment({
 }: {
   mapping: proto.IProfileAssignmentInfo;
   profileIdx: number;
+  activationIdx: number;
   mode: proto.FaceButtonMappingMode;
   filterSingle: boolean;
   dispatch: (mapping: proto.IProfileAssignmentInfo) => void;
@@ -1555,14 +1718,16 @@ function SantrollerAssignment({
 }) {
   const [opened, { open, close }] = useDisclosure(false);
   const { t } = useTranslation();
-  const deviceStatus = useConfigStore((state) => state.deviceStatus);
   const assignmentTypeCombobox = useCombobox({
     onDropdownClose: () => assignmentTypeCombobox.resetSelectedOption(),
   });
   const typeCombobox = useCombobox({
     onDropdownClose: () => typeCombobox.resetSelectedOption(),
   });
-  const types = (filterSingle ? MultiProfileAssignmentTypes : AllProfileAssignmentTypes);
+  const triggerModeCombobox = useCombobox({
+    onDropdownClose: () => triggerModeCombobox.resetSelectedOption(),
+  });
+  const types = filterSingle ? MultiProfileAssignmentTypes : AllProfileAssignmentTypes;
   const label = t('assignmentType.' + types.filter((x) => mapping[x]));
   const base = useMemo(
     () => (
@@ -1580,6 +1745,14 @@ function SantrollerAssignment({
     ),
     [label]
   );
+
+  const analogInput =
+    mapping.input?.input.gpio?.analog ||
+    mapping.input?.input.ads1115 ||
+    mapping.input?.input.wiiAxis ||
+    mapping.inputAnyTime?.input.gpio?.analog ||
+    mapping.inputAnyTime?.input.ads1115 ||
+    mapping.inputAnyTime?.input.wiiAxis;
   return (
     <>
       <Modal opened={opened} onClose={close} title={t('delete_assignment_dialog.title')} centered>
@@ -1679,7 +1852,7 @@ function SantrollerAssignment({
           <Combobox
             store={typeCombobox}
             onOptionSubmit={(val) => {
-              mapping.usbType = proto.SubType[val as keyof typeof proto.SubType];
+              dispatch({ usbType: proto.SubType[val as keyof typeof proto.SubType] });
               typeCombobox.closeDropdown();
             }}
           >
@@ -1714,7 +1887,7 @@ function SantrollerAssignment({
           <Combobox
             store={typeCombobox}
             onOptionSubmit={(val) => {
-              mapping.consoleType = proto.ConsoleType[val as keyof typeof proto.ConsoleType];
+              dispatch({ consoleType: proto.ConsoleType[val as keyof typeof proto.ConsoleType] });
               typeCombobox.closeDropdown();
             }}
           >
@@ -1749,7 +1922,7 @@ function SantrollerAssignment({
           <Combobox
             store={typeCombobox}
             onOptionSubmit={(val) => {
-              mapping.wiiExt = proto.WiiExtType[val as keyof typeof proto.WiiExtType];
+              dispatch({ wiiExt: proto.WiiExtType[val as keyof typeof proto.WiiExtType] });
               typeCombobox.closeDropdown();
             }}
           >
@@ -1784,7 +1957,9 @@ function SantrollerAssignment({
           <Combobox
             store={typeCombobox}
             onOptionSubmit={(val) => {
-              mapping.ps2Cnt = proto.PS2ControllerType[val as keyof typeof proto.PS2ControllerType];
+              dispatch({
+                ps2Cnt: proto.PS2ControllerType[val as keyof typeof proto.PS2ControllerType],
+              });
               typeCombobox.closeDropdown();
             }}
           >
@@ -1817,8 +1992,34 @@ function SantrollerAssignment({
         )}
         {mapping.usbDevice && (
           <>
-            <TextInput label="Vendor ID" leftSection="0x" accept='\w' value={mapping.usbDevice.vid.toString(16)} onChange={(event) => dispatch({ ...mapping, usbDevice: {...mapping.usbDevice!, vid: parseInt((event.currentTarget.value || "0").substring(0,4), 16) ?? 0}})} />
-            <TextInput label="Product ID" leftSection="0x" accept='\w' value={mapping.usbDevice.pid.toString(16)} onChange={(event) => dispatch({ ...mapping, usbDevice: {...mapping.usbDevice!, pid: parseInt((event.currentTarget.value || "0").substring(0,4), 16) ?? 0}})} />
+            <TextInput
+              label="Vendor ID"
+              leftSection="0x"
+              accept="\w"
+              value={mapping.usbDevice.vid.toString(16)}
+              onChange={(event) =>
+                dispatch({
+                  usbDevice: {
+                    ...mapping.usbDevice!,
+                    vid: parseInt((event.currentTarget.value || '0').substring(0, 4), 16) ?? 0,
+                  },
+                })
+              }
+            />
+            <TextInput
+              label="Product ID"
+              leftSection="0x"
+              accept="\w"
+              value={mapping.usbDevice.pid.toString(16)}
+              onChange={(event) =>
+                dispatch({
+                  usbDevice: {
+                    ...mapping.usbDevice!,
+                    pid: parseInt((event.currentTarget.value || '0').substring(0, 4), 16) ?? 0,
+                  },
+                })
+              }
+            />
           </>
         )}
         {mapping.input && (
@@ -1830,12 +2031,40 @@ function SantrollerAssignment({
           ></SantrollerInput>
         )}
         {mapping.inputAnyTime && (
-          <SantrollerInput
-            axis={false}
-            button={true}
-            input={mapping.inputAnyTime.input}
-            dispatch={(input) => dispatch({ ...mapping, inputAnyTime: { input } })}
-          ></SantrollerInput>
+          <>
+            <SantrollerInput
+              axis={false}
+              button={true}
+              input={mapping.inputAnyTime.input}
+              dispatch={(input) => dispatch({ ...mapping, inputAnyTime: { input } })}
+            ></SantrollerInput>
+            {analogInput && (
+              <ActivationTrigger
+                input={mapping.inputAnyTime}
+                profileIdx={profileIdx}
+                activationIdx={activationIdx}
+                dispatch={(inputAnyTime) => dispatch({ ...mapping, inputAnyTime })}
+              ></ActivationTrigger>
+            )}
+          </>
+        )}
+        {mapping.input && (
+          <>
+            <SantrollerInput
+              axis={false}
+              button={true}
+              input={mapping.input.input}
+              dispatch={(input) => dispatch({ ...mapping, input: { input } })}
+            ></SantrollerInput>
+            {analogInput && (
+              <ActivationTrigger
+                input={mapping.input}
+                profileIdx={profileIdx}
+                activationIdx={activationIdx}
+                dispatch={(input) => dispatch({ ...mapping, input })}
+              ></ActivationTrigger>
+            )}
+          </>
         )}
       </Card>
     </>
@@ -1857,7 +2086,6 @@ function SantrollerAssignmentList({
 }) {
   const [opened, { open, close }] = useDisclosure(false);
   const { t } = useTranslation();
-  const deviceStatus = useConfigStore((state) => state.deviceStatus);
   const assignmentTypeCombobox = useCombobox({
     onDropdownClose: () => assignmentTypeCombobox.resetSelectedOption(),
   });
@@ -1882,9 +2110,16 @@ function SantrollerAssignmentList({
         </Flex>
       </Modal>
       <Card shadow="sm" padding="lg" radius="md" withBorder w="400px" h="100%">
+        <Card.Section>
+          <ActionIcon color="red" style={{ position: 'absolute', top: 0, right: 0 }}>
+            <IconTrash style={{ width: '70%', height: '70%' }} onClick={open} />
+          </ActionIcon>
+          <Space h="xl" />
+        </Card.Section>
         {mapping.assignments?.map((assignment, assignmentIdx) => (
           <SantrollerAssignment
             key={assignmentIdx}
+            activationIdx={assignmentIdx}
             mapping={assignment}
             filterSingle={
               mapping.assignments?.some(
@@ -2163,6 +2398,23 @@ function Profile({ profileIdx }: { profileIdx: number }) {
       <Space h="md" />
       <Title order={3}>Inputs</Title>
       <Group align="stretch">
+        <Button
+          variant="filled"
+          onClick={() =>
+            updateProfile(
+              {
+                ...profile,
+                mappings: [
+                  ...profile.mappings!,
+                  { input: { gpio: { analog: false, pin: 0, pinMode: proto.PinMode.PullUp } } },
+                ],
+              },
+              profileIdx
+            )
+          }
+        >
+          {t('inputs.add')}
+        </Button>
         <Button variant="filled" onClick={() => loadDefaults(undefined)}>
           Load empty defaults
         </Button>

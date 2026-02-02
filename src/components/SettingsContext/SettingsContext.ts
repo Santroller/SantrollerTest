@@ -23,6 +23,19 @@ export class MappingStatus {
   state: number;
   stateRaw: number;
 }
+export class ActivationStatus {
+  [immerable] = true;
+  constructor(id: number, activation: proto.IProfileAssignmentInfo) {
+    this.id = id;
+    this.activation = activation;
+    this.state = 0;
+    this.stateRaw = 0;
+  }
+  id: number;
+  activation: proto.IProfileAssignmentInfo;
+  state: number;
+  stateRaw: number;
+}
 export class DeviceStatus {
   [immerable] = true;
   constructor(id: string, type: string, device: proto.IDevice) {
@@ -120,6 +133,7 @@ export class DeviceStatus {
 export interface ConfigState {
   deviceStatus: { [id: string]: DeviceStatus };
   mappingStatus: { [id: number]: MappingStatus }[];
+  activationStatus: { [id: number]: ActivationStatus }[];
   config: proto.IConfig;
   connected: boolean;
   hidDevice?: HIDDevice;
@@ -162,9 +176,13 @@ function InitState(config: proto.Config): ConfigState {
   const mappingStatus = config.profiles!.map((profile) =>
     Object.fromEntries(profile.mappings!.map((x, i) => [i, new MappingStatus(i, x)]))
   );
+  const activationStatus = config.profiles!.map((profile) =>
+    Object.fromEntries(profile.assignments!.flatMap(x => x.assignments).map((x, i) => [i, new ActivationStatus(i, x)]))
+  );
   return {
     deviceStatus,
     mappingStatus,
+    activationStatus,
     config,
     connected: false,
     crc: 0,
@@ -393,6 +411,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       get().saveConfig();
     },
     setActiveProfile: async (id: string | null) => {
+      console.log("set active", id)
       if (id == 'add') {
         return;
       }
