@@ -28,11 +28,12 @@
     "midi": "MIDI",
     "debug": "Debug",
     "ads1115": "ADS1115 Multiplexer",
-    "accelerometer": "MPU-6050 / LIS3DH / ADXL345 Accelerometer",
+    "accelerometer": "Accelerometer",
     "ws2812": "WS2812 LEDs",
     "apa102": "APA102 LEDs",
     "STP16CPC": "STP16CPC LED Driver"
   },
+  "inputs": { "add": "Add Input" },
   "wii": {
     "extensions": {
       "WiiClassicController": "Classic Controller",
@@ -129,12 +130,36 @@
   "invalid_pin": "None",
   "invalid_pin_message": "No pin selected",
   "pin": "GP{{pin}}",
+  "pin_label": "Pin",
+  "device_to_emulate": "Device to emulate",
   "pin_detect": "Detect Pin",
   "pin_use_current": "Use current value",
   "trigger": {
     "min": "Trigger Min",
     "max": "Trigger Max",
     "trigger": "Trigger"
+  },
+  "gpio": {
+    "mode": {
+      "PullDown": "Pull Down",
+      "PullUp": "Pull Up",
+      "Floating": "Floating",
+      "BusKeep": "Bus Keep",
+      "label": "Mode"
+    }
+  },
+  "state": {
+    "pressed": "Pressed",
+    "released": "Released",
+    "active": "Matching",
+    "inactive": "Not matching"
+  },
+  "trigger_type": {
+    "label": "Label",
+    "JoyHigh": "Active High",
+    "JoyLow": "Active Low",
+    "Exact": "Exact Value",
+    "Range": "Active Between"
   },
   "mapping_mode": {
     "label": "Mapping Mode",
@@ -278,6 +303,19 @@
     "confirm": "Delete device",
     "cancel": "Cancel"
   },
+  "clear_all_button": "Clear All",
+  "clear_all_dialog": {
+    "title": "Clear all inputs",
+    "desc": "Are you sure you wish to clear all inputs?",
+    "confirm": "Clear all",
+    "cancel": "Cancel"
+  },
+  "clear_all_assign_dialog": {
+    "title": "Clear all assignments",
+    "desc": "Are you sure you wish to clear all assignments?",
+    "confirm": "Clear all",
+    "cancel": "Cancel"
+  },
   "delete_device_dialog": {
     "title": "Deleting device",
     "desc": "Are you sure you wish to delete this device?",
@@ -311,7 +349,7 @@
     "midiChannel": "Match on MIDI channel"
   },
   "consoleType": {
-    "ConsoleWii_WiiU":"Wii / Wii U",
+    "ConsoleWii_WiiU": "Wii / Wii U",
     "ConsoleOgXbox": "OG Xbox",
     "ConsoleXbox360": "Xbox 360",
     "ConsoleXboxOne": "Xbox One / Series",
@@ -386,6 +424,11 @@
     "GuitarHeroGuitarYellow": "Yellow Fret",
     "GuitarHeroGuitarBlue": "Blue Fret",
     "GuitarHeroGuitarOrange": "Orange Fret",
+    "GuitarHeroGuitarTapGreen": "Slider Green Fret",
+    "GuitarHeroGuitarTapRed": "Slider Red Fret",
+    "GuitarHeroGuitarTapYellow": "Slider Yellow Fret",
+    "GuitarHeroGuitarTapBlue": "Slider Blue Fret",
+    "GuitarHeroGuitarTapOrange": "Slider Orange Fret",
     "GuitarHeroGuitarBack": "Back / Select / Minus (-)",
     "GuitarHeroGuitarStart": "Start / Plus (+)",
     "GuitarHeroGuitarGuide": "Guide / Home / PS",
