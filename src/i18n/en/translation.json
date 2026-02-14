@@ -290,7 +290,8 @@
       "label": "Pattern",
       "PatternRainbow": "Rainbow",
       "PatternFade": "Breathing"
-    }
+    },
+    "set_off": "Set off colour"
   },
   "psx": {
     "data": {

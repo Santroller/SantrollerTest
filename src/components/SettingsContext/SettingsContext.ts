@@ -422,7 +422,7 @@ function createDefault(type: string, id: string) {
       device = { spi };
       break;
     case 'apa102':
-      device = { spi, count: 0, type: proto.APA102Type.Apa102Rgb };
+      device = { spi: { ...spi, clock: 12000000 }, count: 0, type: proto.APA102Type.Apa102Rgb };
       break;
     case 'stp16cpc':
       device = { spi, oe: -1, le: -1, count: 0 };
@@ -508,7 +508,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       const infoBuffer = proto.Command.encode(
         proto.Command.create({
           setProfile: proto.SetProfileCommand.create({
-            profileId: parseInt(id ?? '0'),
+            profileId: state.config.profiles![parseInt(id ?? '0')].uid,
           }),
         })
       ).finish();
@@ -526,7 +526,18 @@ export const useConfigStore = create<ConfigState & Actions>()(
           ...state.config,
           profiles: [
             ...state.config.profiles!.map((prevProfile, prevIndex) =>
-              prevIndex == id ? profile : prevProfile
+              prevIndex == id
+                ? profile
+                : profile.assignments?.every((x) => x.assignments?.every((y) => !y.catchall))
+                  ? prevProfile
+                  : {
+                      ...prevProfile,
+                      assignments: prevProfile.assignments
+                        ?.map((a) => ({
+                          assignments: a.assignments!.filter((b) => !b.catchall),
+                        }))
+                        .filter((a) => a.assignments.length),
+                    }
             ),
           ],
         };
@@ -568,6 +579,18 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.ledStatus = state.config.profiles!.map((profile) =>
           Object.fromEntries(profile.leds!.map((x, i) => [i, new LedStatus(i, x)]))
         );
+        if (
+          state.config.profiles?.every((x) =>
+            x.assignments?.every((y) => y.assignments?.every((z) => !z.catchall))
+          )
+        ) {
+          state.config.profiles[0].assignments = [
+            ...state.config.profiles[0].assignments!,
+            {
+              assignments: [{ catchall: true }],
+            },
+          ];
+        }
       });
       get().saveConfig();
     },
@@ -889,6 +912,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.mappingStatus[state.config.profiles!.length - 1] = [];
         state.activationStatus[state.config.profiles!.length - 1] = [];
         state.ledStatus[state.config.profiles!.length - 1] = [];
+        if (state.config.profiles?.length == 1) {
+          state.config.profiles[0].assignments = [{ assignments: [{ catchall: true }] }];
+        }
       });
       get().saveConfig();
     },
@@ -983,7 +1009,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       const infoBuffer2 = proto.Command.encode(
         proto.Command.create({
           setProfile: proto.SetProfileCommand.create({
-            profileId: state.currentProfile,
+            profileId: state.config.profiles![state.currentProfile].uid,
           }),
         })
       ).finish();
@@ -993,6 +1019,9 @@ export const useConfigStore = create<ConfigState & Actions>()(
       );
     },
     connect: async () => {
+      if (!navigator.hid) {
+        return;
+      }
       const devices = await navigator.hid.requestDevice({
         filters: [{ vendorId: 0x1209, productId: 0x2882, usagePage: 0xff00 }],
       });
@@ -1058,15 +1087,16 @@ export const useConfigStore = create<ConfigState & Actions>()(
     },
   }))
 );
-
-navigator.hid.addEventListener('disconnect', (e) => {
-  if (useConfigStore.getState().hidDevice == e.device) {
-    useConfigStore.setState((state) => {
-      state.connected = false;
-      state.hidDevice = undefined;
-    });
-  }
-});
+if (navigator.hid) {
+  navigator.hid.addEventListener('disconnect', (e) => {
+    if (useConfigStore.getState().hidDevice == e.device) {
+      useConfigStore.setState((state) => {
+        state.connected = false;
+        state.hidDevice = undefined;
+      });
+    }
+  });
+}
 
 // make sure we disconnect from the device when using HMR in development
 if (import.meta.hot) {

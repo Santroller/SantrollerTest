@@ -722,7 +722,12 @@ function SantrollerInput({
   let deviceId = -1;
   for (const key of Object.keys(input)) {
     const key2 = key as keyof typeof input;
-    if (key2 != 'fixed' && key2 != 'gpio' && key2 != 'shortcut' && input[key2]!.deviceid) {
+    if (
+      key2 != 'fixed' &&
+      key2 != 'gpio' &&
+      key2 != 'shortcut' &&
+      input[key2]!.deviceid !== undefined
+    ) {
       deviceId = input[key2]!.deviceid;
       break;
     }
@@ -757,6 +762,8 @@ function SantrollerInput({
     deviceValue = t(`devices.mouseButton`);
   } else if (input.key) {
     deviceValue = t(`devices.key`);
+  } else if (input.shortcut) {
+    deviceValue = t(`devices.shortcut`);
   } else if (device) {
     deviceValue = `${t(`devices.${device.type}`)} (${DeviceStatus.label(device)})`;
   }
@@ -851,6 +858,13 @@ function SantrollerInput({
                   gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp },
                 });
                 break;
+              case 'shortcut':
+                dispatch({
+                  shortcut: {
+                    inputs: [{ gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp } }],
+                  },
+                });
+                break;
             }
           }}
         >
@@ -879,6 +893,7 @@ function SantrollerInput({
                 ))}
               <Combobox.Option value="gpio_analog">{t('devices.gpio_analog')}</Combobox.Option>
               <Combobox.Option value="gpio_digital">{t('devices.gpio_digital')}</Combobox.Option>
+              <Combobox.Option value="shortcut">{t('devices.shortcut')}</Combobox.Option>
             </Combobox.Options>
           </Combobox.Dropdown>
         </Combobox>
@@ -896,7 +911,71 @@ function SantrollerInput({
         </InputBase>
       )}
       <Space h="md" />
-
+      {input.shortcut && (
+        <ActionIcon
+          onClick={() =>
+            dispatch({
+              shortcut: {
+                inputs: [
+                  ...input.shortcut?.inputs!,
+                  { gpio: { pin: -1, analog: false, pinMode: proto.PinMode.PullUp } },
+                ],
+              },
+            })
+          }
+        >
+          <IconPlus style={{ width: '70%', height: '70%' }} />
+        </ActionIcon>
+      )}
+      {input.shortcut &&
+        input.shortcut.inputs?.map((innerInput, idx) => (
+          <div key={idx}>
+            <Card shadow="sm" padding="lg" radius="md" withBorder w="380px" h="100%">
+              <Card.Section h="20px">
+                <div style={{ position: 'absolute', top: 0, right: 0 }}>
+                  <ActionIcon
+                    color="red"
+                    onClick={() =>
+                      dispatch({
+                        shortcut: {
+                          inputs: input.shortcut?.inputs?.filter((oldX, oldIdx) => idx != oldIdx),
+                        },
+                      })
+                    }
+                  >
+                    <IconTrash style={{ width: '70%', height: '70%' }} />
+                  </ActionIcon>
+                  <ActionIcon
+                    onClick={() =>
+                      dispatch({
+                        shortcut: {
+                          inputs: [...input.shortcut?.inputs!, { ...innerInput }],
+                        },
+                      })
+                    }
+                  >
+                    <IconCopy style={{ width: '70%', height: '70%' }} />
+                  </ActionIcon>
+                </div>
+              </Card.Section>
+              <SantrollerInput
+                axis={!!axis}
+                button={!!button}
+                input={innerInput}
+                dispatch={(changed) =>
+                  dispatch({
+                    shortcut: {
+                      inputs: input.shortcut?.inputs?.map((oldX, oldIdx) =>
+                        idx == oldIdx ? changed : oldX
+                      ),
+                    },
+                  })
+                }
+                mappingIdx={mappingIdx}
+              ></SantrollerInput>
+            </Card>
+          </div>
+        ))}
       {input.wiiAxis && (
         <DropdownBox
           title="input"
@@ -1488,9 +1567,12 @@ function SantrollerLed({
                           startR: 0,
                           startG: 0,
                           startB: 0,
+                          startW: 0,
+                          endW: 0,
                           endR: 0,
                           endG: 0,
                           endB: 0,
+                          hasStart: true,
                         },
                       },
                     });
@@ -1677,6 +1759,7 @@ function SantrollerLed({
             ledIdx={ledIdx}
           ></SantrollerInput>
         )}
+        <Space h="md" />
         {led.mapping.patternMapping && (
           <>
             <DropdownBox
@@ -1691,71 +1774,39 @@ function SantrollerLed({
                 })
               }
             ></DropdownBox>
-            <NumberInput
-              label={t('leds.speed')}
-              value={led.mapping.patternMapping.speed! || ''}
-              onBlur={() =>
-                dispatch({
-                  ...led,
-                  mapping: {
-                    patternMapping: {
-                      ...led.mapping.patternMapping!,
-                      speed: led.mapping.patternMapping?.speed || 1,
-                    },
-                  },
-                })
-              }
-              min={1}
-              onChange={(input) => {
-                dispatch({
-                  ...led,
-                  mapping: {
-                    patternMapping: { ...led.mapping.patternMapping!, speed: Number(input) },
-                  },
-                });
-              }}
-            />
+            <Text size="sm">{t('leds.speed')}</Text>
             <Slider
               value={led.mapping.patternMapping?.speed}
               min={1}
               max={20}
-              onChange={(val) =>
+              onChange={(speed) =>
                 dispatch({
                   ...led,
                   mapping: {
-                    patternMapping: { ...led.mapping.patternMapping!, speed: Number(val) },
+                    patternMapping: { ...led.mapping.patternMapping!, speed },
                   },
                 })
               }
             />
+            <Text size="sm">{t('leds.brightness')}</Text>
             {led.mapping.patternMapping.pattern == proto.RgbPatternType.PatternRainbow && (
-              <NumberInput
-                label={t('leds.brightness')}
-                value={led.mapping.patternMapping.brightness! || ''}
-                onBlur={() =>
+              <Slider
+                value={led.mapping.patternMapping?.brightness}
+                min={1}
+                max={255}
+                onChange={(brightness) =>
                   dispatch({
                     ...led,
                     mapping: {
-                      patternMapping: {
-                        ...led.mapping.patternMapping!,
-                        brightness: led.mapping.patternMapping?.brightness || 1,
-                      },
+                      patternMapping: { ...led.mapping.patternMapping!, brightness },
                     },
                   })
                 }
-                min={1}
-                onChange={(input) => {
-                  dispatch({
-                    ...led,
-                    mapping: {
-                      patternMapping: { ...led.mapping.patternMapping!, brightness: Number(input) },
-                    },
-                  });
-                }}
               />
             )}
           </>
         )}
+        <Space h="md" />
         {led.device.rgb && (
           <>
             <MultiSelect
@@ -1774,14 +1825,84 @@ function SantrollerLed({
                 })
               }
             />
-            {led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow &&
+            <Space h="md" />
+            {led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow && (
+              <Switch
+                label={t("leds.set_off")}
+                checked={led.device.rgb.hasStart}
+                onChange={(event) => {
+                  console.log(event.currentTarget.checked);
+                  dispatch({
+                    ...led,
+                    device: {
+                      rgb: {
+                        ...led.device.rgb!,
+                        hasStart: event.currentTarget.checked,
+                      },
+                    },
+                  });
+                }}
+              />
+            )}
+            {(led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow &&
+              led.device.rgb.hasStart &&
               !led.mapping.staticMapping && (
+                <Group>
+                  <ColorInput
+                    label="Off Colour"
+                    placeholder="Input placeholder"
+                    format="rgba"
+                    value={`rgba(${led.device.rgb?.startR}, ${led.device.rgb?.startG}, ${led.device.rgb?.startB}, ${(led.device.rgb?.startW! / 255).toFixed(2)})`}
+                    onChange={(val) => {
+                      if (!val) return;
+                      const [r, g, b, w] = val.split('(')[1].split(')')[0].split(', ');
+                      dispatch({
+                        ...led,
+                        device: {
+                          ...led.device,
+                          rgb: {
+                            ...led.device.rgb!,
+                            startR: parseInt(r),
+                            startG: parseInt(g),
+                            startB: parseInt(b),
+                            startW: parseFloat(w) * 255,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                  <Input.Wrapper label=" " description=" " error=" ">
+                    <Button
+                      onClick={() =>
+                        dispatch({
+                          ...led,
+                          device: {
+                            ...led.device,
+                            rgb: {
+                              ...led.device.rgb!,
+                              endR: led.device.rgb?.startR!,
+                              endG: led.device.rgb?.startG!,
+                              endB: led.device.rgb?.startB!,
+                              endW: led.device.rgb?.startW!,
+                            },
+                          },
+                        })
+                      }
+                    >
+                      Copy to on
+                    </Button>
+                  </Input.Wrapper>
+                </Group>
+              )) ||
+              undefined}
+            <Space h="md" />
+            {led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow && (
+              <Group>
                 <ColorInput
-                  label="Off Colour"
-                  description="Input description"
+                  label="On Colour"
                   placeholder="Input placeholder"
                   format="rgba"
-                  value={`rgba(${led.device.rgb?.startR}, ${led.device.rgb?.startG}, ${led.device.rgb?.startB}, ${led.device.rgb?.startW! / 255})`}
+                  value={`rgba(${led.device.rgb?.endR}, ${led.device.rgb?.endG}, ${led.device.rgb?.endB}, ${(led.device.rgb?.endW! / 255).toFixed(2)})`}
                   onChange={(val) => {
                     if (!val) return;
                     const [r, g, b, w] = val.split('(')[1].split(')')[0].split(', ');
@@ -1791,41 +1912,39 @@ function SantrollerLed({
                         ...led.device,
                         rgb: {
                           ...led.device.rgb!,
-                          startR: parseInt(r),
-                          startG: parseInt(g),
-                          startB: parseInt(b),
-                          startW: parseInt(w) * 255,
+                          endR: parseInt(r),
+                          endG: parseInt(g),
+                          endB: parseInt(b),
+                          endW: parseFloat(w) * 255,
                         },
                       },
                     });
                   }}
                 />
-              )}
-            {led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow && (
-              <ColorInput
-                label="On Colour"
-                description="Input description"
-                placeholder="Input placeholder"
-                format="rgba"
-                value={`rgba(${led.device.rgb?.endR}, ${led.device.rgb?.endG}, ${led.device.rgb?.endB}, ${led.device.rgb?.endW! / 255})`}
-                onChange={(val) => {
-                  if (!val) return;
-                  const [r, g, b, w] = val.split('(')[1].split(')')[0].split(', ');
-                  dispatch({
-                    ...led,
-                    device: {
-                      ...led.device,
-                      rgb: {
-                        ...led.device.rgb!,
-                        endR: parseInt(r),
-                        endG: parseInt(g),
-                        endB: parseInt(b),
-                        endW: parseFloat(w) * 255,
-                      },
-                    },
-                  });
-                }}
-              />
+                {!led.mapping.staticMapping && led.device.rgb.hasStart && (
+                  <Input.Wrapper label=" " description=" " error=" ">
+                    <Button
+                      onClick={() =>
+                        dispatch({
+                          ...led,
+                          device: {
+                            ...led.device,
+                            rgb: {
+                              ...led.device.rgb!,
+                              startR: led.device.rgb?.endR!,
+                              startB: led.device.rgb?.endG!,
+                              startG: led.device.rgb?.endB!,
+                              startW: led.device.rgb?.endW!,
+                            },
+                          },
+                        })
+                      }
+                    >
+                      Copy to off
+                    </Button>
+                  </Input.Wrapper>
+                )}
+              </Group>
             )}
           </>
         )}

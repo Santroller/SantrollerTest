@@ -63,18 +63,14 @@ function I2CDevice({
         error={error}
         pin={device.sda}
         valid={SdaPins}
-        dispatch={(pin) =>
-          dispatch({ ...device, sda: pin, block: parseInt(I2CGroups[pin]) })
-        }
+        dispatch={(pin) => dispatch({ ...device, sda: pin, block: parseInt(I2CGroups[pin]) })}
       />
       <PinBox
         label="i2c.scl.label"
         error={error}
         pin={device.scl}
         valid={SclPins}
-        dispatch={(pin) =>
-          dispatch({ ...device, scl: pin, block: parseInt(I2CGroups[pin])})
-        }
+        dispatch={(pin) => dispatch({ ...device, scl: pin, block: parseInt(I2CGroups[pin]) })}
       />
     </>
   );
@@ -100,7 +96,11 @@ function SPIDevice({
   noSck?: boolean;
 }) {
   const error =
-    (new Set([SPIGroups[device.mosi], SPIGroups[device.miso], SPIGroups[device.sck]]).size !== 1 &&
+    (new Set([
+      noMosi ? null : SPIGroups[device.mosi],
+      noMiso ? null : SPIGroups[device.miso],
+      noSck ? null : SPIGroups[device.sck],
+    ].filter(x=>x)).size !== 1 &&
       'spi.incorrect_group') ||
     '';
 
@@ -112,7 +112,7 @@ function SPIDevice({
           error={error}
           pin={device.mosi}
           valid={MosiPins}
-          dispatch={(pin) => dispatch({ ...device, mosi: pin })}
+          dispatch={(pin) => dispatch({ ...device, block: parseInt(SPIGroups[pin]), mosi: pin })}
         />
       )}
       {!noMiso && (
@@ -121,7 +121,7 @@ function SPIDevice({
           error={error}
           pin={device.miso}
           valid={MisoPins}
-          dispatch={(pin) => dispatch({ ...device, miso: pin })}
+          dispatch={(pin) => dispatch({ ...device, block: parseInt(SPIGroups[pin]), miso: pin })}
         />
       )}
       {!noSck && (
@@ -130,7 +130,7 @@ function SPIDevice({
           error={error}
           pin={device.sck}
           valid={SckPins}
-          dispatch={(pin) => dispatch({ ...device, sck: pin })}
+          dispatch={(pin) => dispatch({ ...device, block: parseInt(SPIGroups[pin]), sck: pin })}
         />
       )}
     </>
@@ -742,6 +742,7 @@ function APA102Device({ id }: { id: string }) {
     throw new Error('device null!');
   }
   const apa102 = device.apa102;
+  console.log(apa102)
   return (
     <DeviceCard
       title="devices.apa102"
