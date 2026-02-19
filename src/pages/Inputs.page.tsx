@@ -2293,19 +2293,16 @@ function SantrollerAssignment({
                 break;
               case 'consoleType':
                 dispatch({
-                  catchall: false,
                   consoleType: proto.ConsoleType.ConsolePC,
                 });
                 break;
               case 'wiiExt':
                 dispatch({
-                  catchall: false,
                   wiiExt: proto.WiiExtType.WiiClassicController,
                 });
                 break;
               case 'ps2Cnt':
                 dispatch({
-                  catchall: false,
                   ps2Cnt: proto.PS2ControllerType.PS2ControllerTypeDigital,
                 });
                 break;
@@ -2317,19 +2314,16 @@ function SantrollerAssignment({
                 break;
               case 'input':
                 dispatch({
-                  catchall: false,
                   input: { input: {} },
                 });
                 break;
               case 'inputAnyTime':
                 dispatch({
-                  catchall: false,
                   inputAnyTime: { input: {} },
                 });
                 break;
               case 'midiChannel':
                 dispatch({
-                  catchall: false,
                   midiChannel: 10,
                 });
                 break;

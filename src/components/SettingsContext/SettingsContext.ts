@@ -529,18 +529,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
           ...state.config,
           profiles: [
             ...state.config.profiles!.map((prevProfile, prevIndex) =>
-              prevIndex == id
-                ? profile
-                : profile.assignments?.every((x) => x.assignments?.every((y) => !y.catchall))
-                  ? prevProfile
-                  : {
-                      ...prevProfile,
-                      assignments: prevProfile.assignments
-                        ?.map((a) => ({
-                          assignments: a.assignments!.filter((b) => !b.catchall),
-                        }))
-                        .filter((a) => a.assignments.length),
-                    }
+              prevIndex == id ? profile : prevProfile
             ),
           ],
         };
@@ -914,9 +903,6 @@ export const useConfigStore = create<ConfigState & Actions>()(
         state.mappingStatus[state.config.profiles!.length - 1] = [];
         state.activationStatus[state.config.profiles!.length - 1] = [];
         state.ledStatus[state.config.profiles!.length - 1] = [];
-        if (state.config.profiles?.length == 1) {
-          state.config.profiles[0].assignments = [{ assignments: [{ catchall: true }] }];
-        }
       });
       get().saveConfig();
     },
@@ -1024,6 +1010,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
       )
         .ldelim()
         .finish();
+      console.log('save');
       let outBuffer = new ArrayBuffer(63);
       new Uint8Array(outBuffer).set(infoBuffer);
       await state.hidDevice.sendFeatureReport(proto.ReportId.ReportIdConfigInfo, outBuffer);
@@ -1095,9 +1082,8 @@ export const useConfigStore = create<ConfigState & Actions>()(
         const profileData = await device.receiveFeatureReport(
           proto.ReportId.ReportIdGetActiveProfiles
         );
-        const activeProfiles = proto.GetActiveProfiles.decode(
-          new Uint8Array(profileData.buffer).slice(1),
-          profileData.byteLength - 1
+        const activeProfiles = proto.GetActiveProfiles.decodeDelimited(
+          new Uint8Array(profileData.buffer).slice(1)
         );
         if (new CRC32().calculate(data) != info.dataCrc) {
           console.log('CRC didnt match!');
