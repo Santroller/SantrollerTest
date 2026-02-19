@@ -168,6 +168,10 @@
     "max": "Trigger Max",
     "trigger": "Trigger"
   },
+  "getting_started": {
+    "title": "Getting started",
+    "text": "Put your Pi Pico into bootloader mode by holding bootsel and plugging it into your pc, then download the following UF2 and drag it into the usb disk that shows up. Once programmed, click Connect to Santroller and connect to the device."
+  },
   "gpio": {
     "mode": {
       "PullDown": "Pull Down",
