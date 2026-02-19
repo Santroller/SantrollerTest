@@ -1228,6 +1228,15 @@ function SantrollerMapping({
           mappingIdx={mappingIdx}
         ></SantrollerInput>
         <Space h="md" />
+        {button && (
+          <NumberInput
+            label={t("debounce.label")}
+            description={t("debounce.desc")}
+            value={mapping.debounce ?? 0}
+            onChange={(val) => dispatch({ ...mapping, debounce: Number(val) })}
+          ></NumberInput>
+        )}
+        <Space h="md" />
         {button && analogInput && (
           <>
             <Space h="md" />
@@ -1567,11 +1576,11 @@ function SantrollerLed({
                           startR: 0,
                           startG: 0,
                           startB: 0,
-                          startW: 0,
-                          endW: 0,
+                          startW: 255,
                           endR: 0,
                           endG: 0,
                           endB: 0,
+                          endW: 255,
                           hasStart: true,
                         },
                       },
@@ -1746,18 +1755,32 @@ function SantrollerLed({
           />
         )}
         {led.mapping.inputMapping?.input && (
-          <SantrollerInput
-            axis={analog}
-            button={!analog}
-            input={led.mapping.inputMapping?.input}
-            dispatch={(input) => {
-              dispatch({
-                ...led,
-                mapping: { inputMapping: { ...led.mapping.inputMapping, input } },
-              });
-            }}
-            ledIdx={ledIdx}
-          ></SantrollerInput>
+          <>
+            <DropdownBox
+              title="leds.pattern.label"
+              e={proto.ReactiveRgbPatternType}
+              val={led.mapping.inputMapping.pattern ?? proto.ReactiveRgbPatternType.PatternStatic}
+              label="leds.pattern"
+              dispatch={(pattern) =>
+                dispatch({
+                  ...led,
+                  mapping: { inputMapping: { ...led.mapping.inputMapping!, pattern } },
+                })
+              }
+            ></DropdownBox>
+            <SantrollerInput
+              axis={analog}
+              button={!analog}
+              input={led.mapping.inputMapping?.input}
+              dispatch={(input) => {
+                dispatch({
+                  ...led,
+                  mapping: { inputMapping: { ...led.mapping.inputMapping, input } },
+                });
+              }}
+              ledIdx={ledIdx}
+            ></SantrollerInput>
+          </>
         )}
         <Space h="md" />
         {led.mapping.patternMapping && (
@@ -1824,11 +1847,12 @@ function SantrollerLed({
                   device: { rgb: { ...led.device.rgb!, activeLed: val.map((x) => parseInt(x)) } },
                 })
               }
+              searchable
             />
             <Space h="md" />
             {led.mapping.patternMapping?.pattern != proto.RgbPatternType.PatternRainbow && (
               <Switch
-                label={t("leds.set_off")}
+                label={t('leds.set_off')}
                 checked={led.device.rgb.hasStart}
                 onChange={(event) => {
                   console.log(event.currentTarget.checked);
@@ -1932,8 +1956,8 @@ function SantrollerLed({
                             rgb: {
                               ...led.device.rgb!,
                               startR: led.device.rgb?.endR!,
-                              startB: led.device.rgb?.endG!,
-                              startG: led.device.rgb?.endB!,
+                              startG: led.device.rgb?.endG!,
+                              startB: led.device.rgb?.endB!,
                               startW: led.device.rgb?.endW!,
                             },
                           },

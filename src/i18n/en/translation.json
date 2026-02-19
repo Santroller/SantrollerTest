@@ -159,6 +159,7 @@
   "invalid_pin_message": "No pin selected",
   "pin": "GP{{pin}}",
   "pin_label": "Pin",
+  "debounce": { "label": "Debounce", "desc": "Expressed in milliseonds, use 0 to disable" },
   "device_to_emulate": "Device to emulate",
   "pin_detect": "Detect Pin",
   "pin_use_current": "Use current value",
