@@ -1155,6 +1155,7 @@ export const useConfigStore = create<ConfigState & Actions>()(
               ...old,
               ...InitState(config),
               connected: true,
+              updating: false,
               hidDevice: device,
               crc: info.dataCrc,
               latest,

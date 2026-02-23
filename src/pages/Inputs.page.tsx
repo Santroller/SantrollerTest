@@ -1221,6 +1221,9 @@ function SantrollerInput({
     </>
   );
 }
+function isAnalog(input: proto.IInput) {
+  return input.gpio?.analog || input.ads1115 || input.wiiAxis || input.accelerometer;
+}
 function SantrollerMapping({
   mapping,
   type,
@@ -1268,11 +1271,7 @@ function SantrollerMapping({
   const button = Object.entries(mapping).find(([k, v]) => k.endsWith('Button') && v);
   const axis = Object.entries(mapping).find(([k, v]) => k.endsWith('Axis') && v);
   const stick = label?.includes('Stick');
-  const analogInput =
-    mapping.input.gpio?.analog ||
-    mapping.input.ads1115 ||
-    mapping.input.wiiAxis ||
-    mapping.input.accelerometer;
+  const analogInput = isAnalog(mapping.input);
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <Modal opened={opened} onClose={close} title={t('delete_device_dialog.title')} centered>
@@ -1328,7 +1327,12 @@ function SantrollerMapping({
           button={!!button}
           input={mapping.input}
           dispatch={(input) => {
-            dispatch({ ...mapping, input });
+            dispatch({
+              ...mapping,
+              input,
+              pressed: isAnalog(input) ? undefined : mapping.pressed ?? 0,
+              released: isAnalog(input) ? undefined : mapping.released ?? stick ? 32768 : 0,
+            });
           }}
           mappingIdx={mappingIdx}
         ></SantrollerInput>

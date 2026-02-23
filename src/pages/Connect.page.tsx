@@ -33,7 +33,7 @@ export function ConnectPage() {
           <Space h="md" />
           Notable missing features:
           <ul>
-            <li>USB Host</li>
+            <li>USB Host - Partial support is there, but its not finished</li>
             <li>Bluetooth</li>
             <li>Wii Extension Emulation (as in, plugging the pico into a wii remote)</li>
             <li>
