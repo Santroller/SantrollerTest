@@ -187,7 +187,9 @@ export interface ConfigState {
   crc: number;
   writing: boolean;
   polling: boolean;
+  updating: boolean;
   detected: number;
+  updatePercentage: number;
   detectedMapping?: number;
   detectedActivation?: number;
   detectedLed?: number;
@@ -207,6 +209,7 @@ export interface Actions {
   updateConfig: (config: proto.IConfig) => void;
   deleteDevice: (id: string) => void;
   connect: () => void;
+  firmwareUpdate: () => void;
   disconnect: () => void;
   deleteAllDevices: () => void;
   addDevice: (type: string) => void;
@@ -252,6 +255,8 @@ function InitState(config: proto.Config): ConfigState {
     activationStatus,
     ledStatus,
     config,
+    updatePercentage: 0,
+    updating: false,
     connected: false,
     detecting: false,
     latest: true,
@@ -1062,6 +1067,37 @@ export const useConfigStore = create<ConfigState & Actions>()(
         await state.hidDevice?.sendFeatureReport(proto.ReportId.ReportIdCommand, outBuffer2);
       }
     },
+    firmwareUpdate: async () => {
+      const state = get();
+      set((old) => ({ ...old, updatePercentage: 1, updating: true }));
+      console.log('loading file');
+      const updateFile = await (await fetch('santroller_fota_image.bin')).bytes();
+      let firmwareInfo = proto.FirmwareUpdate.create({
+        chunkOffset: 0,
+        chunkSize: 32,
+        firmwareSize: updateFile.length,
+        offset: 0,
+      });
+      console.log('loaded');
+      let buffer = new ArrayBuffer(63);
+      for (let i = 0; i < updateFile.length; i += 256) {
+        firmwareInfo.chunkOffset = 0;
+        firmwareInfo.offset = i;
+        let firmwareInfoBuffer = proto.FirmwareUpdate.encodeDelimited(firmwareInfo)
+          .ldelim()
+          .finish();
+        new Uint8Array(buffer).set(firmwareInfoBuffer);
+        await state.hidDevice?.sendFeatureReport(proto.ReportId.ReportIdUpdateFirmware, buffer);
+        for (let j = 0; j < 256 && i + j < updateFile.length; j += 32) {
+          let buffer2 = new ArrayBuffer(33);
+          new Uint8Array(buffer2).set([proto.ReportId.ReportIdUploadFirmware]);
+          new Uint8Array(buffer2).set(updateFile.slice(i + j, i + j + 32), 1);
+          await state.hidDevice?.sendFeatureReport(proto.ReportId.ReportIdUploadFirmware, buffer2);
+          set((old) => ({ ...old, updatePercentage: 1 + ((i + j) / updateFile.length) * 99 }));
+        }
+      }
+      set((old) => ({ ...old, updating: false }));
+    },
     connect: async () => {
       if (!navigator.hid) {
         return;
@@ -1079,11 +1115,11 @@ export const useConfigStore = create<ConfigState & Actions>()(
         const infoData = await device.receiveFeatureReport(proto.ReportId.ReportIdConfigInfo);
         try {
           const commitHash = await device.receiveFeatureReport(proto.ReportId.ReportIdGetVersion);
-          const deviceVersion = String.fromCharCode.apply(
-            null,
-            Array.from(new Uint8Array(commitHash.buffer.slice(1)))
-          ).trim().substring(0,8);
-          const latestVersion = (await (await fetch('commit.hash')).text()).trim().substring(0,8);
+          const deviceVersion = String.fromCharCode
+            .apply(null, Array.from(new Uint8Array(commitHash.buffer.slice(1))))
+            .trim()
+            .substring(0, 8);
+          const latestVersion = (await (await fetch('commit.hash')).text()).trim().substring(0, 8);
           latest = deviceVersion == latestVersion;
         } catch (e) {
           console.log(e);

@@ -1,6 +1,6 @@
 import { IconExclamationCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, FileButton, FileInput, Space, Text } from '@mantine/core';
+import { Alert, Button, FileButton, FileInput, Progress, Space, Text } from '@mantine/core';
 import { Layout } from '@/components/Layout/Layout';
 import { useConfigStore } from '@/components/SettingsContext/SettingsContext';
 
@@ -9,7 +9,10 @@ export function ConnectPage() {
   const disconnect = useConfigStore((state) => state.disconnect);
   const exportConfig = useConfigStore((state) => state.exportConfig);
   const loadConfig = useConfigStore((state) => state.loadConfig);
+  const firmwareUpdate = useConfigStore((state) => state.firmwareUpdate);
   const connected = useConfigStore((state) => state.connected);
+  const updating = useConfigStore((state) => state.updating);
+  const updatePercentage = useConfigStore((state) => state.updatePercentage);
   const latest = useConfigStore((state) => state.latest);
   const { t } = useTranslation();
   return (
@@ -48,17 +51,6 @@ export function ConnectPage() {
           sometimes it may not load correctly after programming.
         </Alert>
 
-        {!latest && connected && (
-          <Alert
-            variant="light"
-            color="red"
-            title="Controller firmware out of date"
-            icon={<IconExclamationCircle />}
-          >
-            Please download the latest uf2 and flash it to your device
-          </Alert>
-        )}
-
         {!navigator.hid && (
           <Alert
             variant="light"
@@ -74,16 +66,39 @@ export function ConnectPage() {
         {navigator.hid && connected && (
           <>
             <Space h="md" />
-            <Button onClick={disconnect}>Disconnect from Santroller</Button>
+            <Button disabled={updating} onClick={disconnect}>
+              Disconnect from Santroller
+            </Button>
             <Space h="md" />
-            <Button onClick={exportConfig}>Export current config</Button>
+            <Button disabled={updating} onClick={exportConfig}>Export current config</Button>
             <Space h="md" />
-            <FileButton onChange={loadConfig} accept="application/json">
-              {(props) => <Button {...props}>Load config from file</Button>}
+            <FileButton disabled={updating} onChange={loadConfig} accept="application/json">
+              {(props) => <Button disabled={updating}  {...props}>Load config from file</Button>}
             </FileButton>
           </>
         )}
-        {navigator.hid && !connected && <Button onClick={connect}>Connect to Santroller</Button>}
+        <Space h="md" />
+        {navigator.hid && !connected && (
+          <Button disabled={updating} onClick={connect}>
+            Connect to Santroller
+          </Button>
+        )}
+
+        {!latest && connected && (
+          <Alert
+            variant="light"
+            color="red"
+            title="Controller firmware out of date"
+            icon={<IconExclamationCircle />}
+          >
+            Firmware outdated! Click the button below to update
+            <Space h="md" />
+            <Button disabled={updating} onClick={firmwareUpdate}>Start update</Button>
+            <Progress size="xl" value={updatePercentage}></Progress>
+          </Alert>
+        )}
+
+        <Space h="md" />
         <Space h="md" />
         <Text size="h1">{t('getting_started.title')}</Text>
         <Text size="sm">{t('getting_started.text')}</Text>

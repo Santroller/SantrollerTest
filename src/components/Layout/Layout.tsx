@@ -39,6 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const [opened, { toggle }] = useDisclosure();
   const connected = useConfigStore((state) => state.connected);
+  const updating = useConfigStore((state) => state.updating);
   const pollInputs = useConfigStore((state) => state.pollInputs);
   const activeProfile = useConfigStore((state) => state.currentProfile);
   const activeProfiles = useConfigStore((state) => state.activeProfiles);
@@ -87,6 +88,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {connected && (
             <>
               <NavLink
+                disabled={updating}
                 component={RouterNavLink}
                 to="/devices"
                 onClick={() => {
@@ -97,6 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 leftSection={<IconSettings size={16} stroke={1.5} />}
               />
               <NavLink
+                disabled={updating}
                 href="#profiles"
                 label="Profiles"
                 leftSection={<IconDeviceGamepad3 size={16} stroke={1.5} />}
@@ -104,6 +107,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 {profiles.map((x, i) => (
                   <NavLink
+                    disabled={updating}
                     key={x.uid}
                     component={RouterLink}
                     to="/profiles"
@@ -115,6 +119,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   />
                 ))}
                 <NavLink
+                  disabled={updating}
                   href="#add-profile"
                   label="Add profile"
                   onClick={addProfile}
